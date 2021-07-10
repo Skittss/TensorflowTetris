@@ -1,11 +1,13 @@
-from tetris import Tetris, Action, getEmptyActionObj
+from tetris import Tetris, getEmptyActionObj
+from util import Action
 from time import sleep
 from interval import Interval
 import os
 import sys
-from colorama import init, Fore, Back, Style
+from colorama import init, Fore, Style
 from pynput import keyboard
 import cursor
+from config import Config
 
 class Interactive:
 
@@ -24,16 +26,7 @@ class Interactive:
         }
         self.ac = getEmptyActionObj()
 
-        self.keybindings = {
-            Action.Left:            keyboard.Key.left,
-            Action.Right:           keyboard.Key.right,
-            Action.SoftDrop:        keyboard.Key.down,
-            Action.HardDrop:        keyboard.Key.space,
-            Action.RotateLeft:      keyboard.Key.up,
-            Action.RotateRight:     'z',
-            Action.Rotate180:       'x',
-            Action.Hold:            'c'
-        }
+        self.keybindings = Config.keybindings
 
         self.keyInfo = {
             self.keybindings[Action.Left]:          {"prev": False, "cur": False},
@@ -47,11 +40,15 @@ class Interactive:
 
         }
         self.timer = None
+        self.inputListener = None
+        self.exitListener = None
 
     def __formatString(self, string):
 
         for k in self.escapeChars:
             string = string.replace(k, f"{self.escapeChars[k]}{k}")+Style.RESET_ALL
+
+        string = string.replace("Next:", f"{Fore.WHITE}Next:{Style.RESET_ALL}").replace("Hold:", f"{Fore.WHITE}Hold:{Style.RESET_ALL}")
 
         return string
 
@@ -102,15 +99,10 @@ class Interactive:
             return
         
         display = self.__formatString(str(self.tet))
-        # bugstr = "\n"
 
-        # for k in self.keyInfo:
-        #     bugstr += f"{k} | {self.keyInfo[k]}\n"
 
-        count = display.count('\n') # + bugstr.count('\n')
-        # print(bugstr)
-        # count+=1
-        sys.stdout.flush()
+        count = display.count('\n')
+        #sys.stdout.flush()
         print(display, end=f"\x1b[{count}A")
 
     def __getKeyInfoDictKey(self, key):
@@ -149,114 +141,35 @@ class Interactive:
         except KeyError:
             return
 
+    def stopThreads(self):
+            
+        if self.timer:
+            self.timer.cancel()
+
+        if self.inputListener:
+            self.inputListener.stop()
+
+        if self.exitListener:
+            self.exitListener.stop()
+
+        os.system('cls')
+        cursor.show_cursor()
+        quit()
+
     def run(self):
-        #keyboard.on_press_key("space", lambda *args: self.__bufferHardDrop())
 
         os.system('cls')
         cursor.hide_cursor()
 
         if not self.timer:
-            # self.timer = RepeatedTimer(0.01, self.__loop)
-            self.timer = Interval(0.01, self.__loop)
+            self.timer = Interval(1/120, self.__loop)
             self.timer.start()
             
-        with keyboard.Listener(on_press = self.__on_press, on_release=self.__on_release) as listener:
-            listener.join()
+        self.inputListener = keyboard.Listener(on_press = self.__on_press, on_release=self.__on_release)
+        self.inputListener.start()
 
-
-# init()
-# tet = Tetris()
-# escapeChars = {
-#     "0": Fore.BLACK,
-#     "1": Fore.CYAN,
-#     "2": Fore.BLUE,
-#     "3": Fore.YELLOW,
-#     "4": Fore.LIGHTYELLOW_EX,
-#     "5": Fore.GREEN,
-#     "6": Fore.MAGENTA,
-#     "7": Fore.RED
-# }
-
-# ac = getEmptyActionObj()
-
-# def setActionParamTrue(param):
-#     ac[param] = True
-
-# keyboard.on_press_key("space", lambda *args: setActionParamTrue(Action.HardDrop))
-
-# def formatString(string):
-
-#     string = "\n\n " + string.replace('[',"").replace(']',"").replace('.',"")
-
-#     for k in escapeChars:
-#         string = string.replace(k, f"{escapeChars[k]}{k}")+Style.RESET_ALL
-
-#     return string
-
-# def getActionFromInputs(ac):
-    
-#     if (keyboard.is_pressed("left")):
-#         ac[Action.Left] = True
-
-#     if (keyboard.is_pressed("right")):
-#         ac[Action.Right] = True
-
-#     if (keyboard.is_pressed("down")):
-#         ac[Action.SoftDrop] = True
-
-#     if (keyboard.is_pressed("up")):
-#         ac[Action.RotateLeft] = True
-    
-#     if (keyboard.is_pressed("z")):
-#         ac[Action.RotateRight] = True
-
-#     if (keyboard.is_pressed("x")):
-#         ac[Action.Rotate180] = True
-
-#     if (keyboard.is_pressed("c")):
-#         ac[Action.Hold] = True
-
-#     # if (keyboard.is_pressed("space")):
-#     #     ac[Action.HardDrop] = True
-
-#     return ac
-
-# # while True:
-# #     try:
-# #         ac = getActionFromInputs(ac)
-
-# #         tet.nextState(ac)
-
-# #         display = formatString(str(tet))
-
-# #         count = display.count('\n')
-# #         print(display, end=f"\x1b[{count}A")
-
-# #         ac = getEmptyActionObj()
-# #         sleep(0.03)
-
-# #     except KeyboardInterrupt:
-# #         break
-
-# def loop(ac):
-#     ac = getActionFromInputs(ac)
-
-#     tet.nextState(ac)
-
-#     display = formatString(str(tet))
-
-#     count = display.count('\n')
-#     print(display, end=f"\x1b[{count}A")
-
-#     ac = getEmptyActionObj()
-    
-#     return ac
-
-# if __name__ == "__main__":
-#     os.system('cls')
-#     cursor.hide_cursor()
-
-#     timer = RepeatedTimer(0.1, loop, ac)
+        self.exitListener = keyboard.GlobalHotKeys({'<ctrl>+<shift>': self.stopThreads})
+        self.exitListener.start()
 
 if __name__ == "__main__":
     game = Interactive()

@@ -1,17 +1,8 @@
 import numpy as np
 import math
+from util import Action
 from enum import Enum
 from collections import deque
-
-class Action(Enum):
-    Left = 0
-    Right = 1
-    SoftDrop = 2
-    HardDrop = 3
-    RotateLeft = 4
-    RotateRight = 5
-    Rotate180 = 6
-    Hold = 7
 
 def getEmptyActionObj():
     return {
@@ -25,7 +16,6 @@ def getEmptyActionObj():
         Action.Hold: False
     }
 
-## Redundant - Remove.
 class Tetrominos(Enum):
     I = 0
     J = 1
@@ -70,10 +60,17 @@ class Tetris:
             return f"<Tetromino: {self.tag}-piece>"
             
 
-    def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, substeps = 5):
+    def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, 
+                    tickRate = 60, frameRate = 120,
+                    G = 20,
+                    DAS = 20,
+                    ARR = 2,
+                    substeps = 5):
 
         self.__substep = 0
-        
+        self.__tickRate = tickRate
+        self.__frameRate = frameRate
+
         self.score = 0
 
         self.__lost = False
@@ -203,8 +200,6 @@ class Tetris:
                     string[drawRow] = string[drawRow][:len(string[drawRow]) - N + MINPAD] + matrixRowStr + string[drawRow][len(string[drawRow]) - N + len(matrixRowStr) + MINPAD : len(string[drawRow])]
 
             uiRow += pieceRows + PIECEPAD - rowsSkipped
-
-        # string 
 
         return "\n\n" + "\n".join(string)
 
@@ -518,9 +513,6 @@ class Tetris:
         return gridSliceV, gridSliceH, tetrominoSliceV, tetrominoSliceH
 
     def __getBag(self, bagSize):
-
-        # ts = [self.Tetromino(self.tetrominoMatrices, self.tetrominoStartPos, tag)
-        #       for tag in self.bagRandom.integers(low = 0, high = 7, size = bagSize)]
 
         idx = self.__getSevenBag()
 
