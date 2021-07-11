@@ -3,6 +3,15 @@ import math
 from util import Action
 from enum import Enum
 from collections import deque
+from config import GameConfig, HandlingConfig
+
+# TODO      Modify piece spawn positions to be correctly centered.
+#           Point System
+#           DAS, ARR, DCD, SCF
+#           Lock delay
+#           Gravity - G
+#           Current actions displayed on __str__
+#           Left right actions take preference for most recently pressed
 
 def getEmptyActionObj():
     return {
@@ -61,18 +70,13 @@ class Tetris:
             
 
     def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, 
-                    tickRate = 60, frameRate = 120,
-                    G = 20,
-                    DAS = 20,
-                    ARR = 2,
+                    handlingConfig = HandlingConfig,
+                    gameConfig = GameConfig,
                     substeps = 5):
 
-        self.__substep = 0
-        self.__tickRate = tickRate
-        self.__frameRate = frameRate
-
+        
+        # Pts & Game over
         self.score = 0
-
         self.__lost = False
 
         # Grid information
@@ -83,6 +87,19 @@ class Tetris:
         # Framerate related info
         self.substepsPerStep = substeps
         self.softdropSubsteps = 3
+
+        self.__substep = 0
+        self.__tick = 0
+        self.__frame = 0
+        self.__tickRate = gameConfig.tickRate
+        self.__frameRate = gameConfig.frameRate
+
+        # DAS, ARR, DCD, SDF
+        self.DAS = handlingConfig.DAS
+        self.DAScharge = 0
+
+        self.ARR = handlingConfig.ARR
+        self.ARRtick = 0
 
         # Hold & Current piece
         self.currentTetromino = None
@@ -201,11 +218,13 @@ class Tetris:
 
             uiRow += pieceRows + PIECEPAD - rowsSkipped
 
-        return "\n\n" + "\n".join(string)
+        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tDAS Charge: {self.DAScharge}fff"
 
     def nextState(self, actions):
 
         if not self.__lost:
+
+            self.__doDASreset(actions)
 
             self.__popCurrentTetrominoFromGrid()
 
@@ -225,8 +244,9 @@ class Tetris:
 
                 self.__lost = not self.__getNextTetromino()
 
+            self.__frame = (self.__frame + 1) % self.__frameRate
+
         else:
-            #print("game over")
             return False
 
     def __updateSubstep(self, actions):
@@ -267,53 +287,49 @@ class Tetris:
                 elif a == Action.Rotate180:
                     self.__rotate180()
 
+    def __doDASreset(self, actions):
+        if not actions[Action.Left] and not actions[Action.Right]:
+            self.DAScharge = 0
+            return
+
+        if self.DAScharge > 0 and actions[Action.Left] and not actions[Action.Right]:
+            self.DAScharge = 0
+            return
+
+        if self.DAScharge < 0 and not actions[Action.Left] and actions[Action.Right]:
+            self.DAScharge = 0
+            return
+
+    def __doDAScharge(self, charge):
+        
+        newCharge = self.DAScharge + charge
+
+        if -self.DAS <= newCharge <= self.DAS:
+            self.DAScharge = newCharge
 
     def __moveLeft(self):
 
-        canMoveLeft = True
+        # TODO: Replace repeated code block
+        if self.DAScharge == 0:
 
-        for x in range(0, self.currentTetromino.matrix.shape[0]):
-            for y in range(0, self.currentTetromino.matrix.shape[1]):
+            canMoveLeft = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[-1, 0]]))
 
-                if not self.currentTetromino.matrix[y, x] == 0:
-
-                    pos = self.currentTetromino.pos + np.array([[x - 1, y]])
-
-                    if pos[0, 0] < 0:
-                        canMoveLeft = False
-                        break
-
-                    leftTile = self.grid[pos[0, 1], pos[0, 0]]
-                    if not leftTile == 0:
-                        canMoveLeft = False
-                        break
-
-        if canMoveLeft:
-            self.currentTetromino.translate(np.array([[-1, 0]]))
+            if canMoveLeft:
+                self.currentTetromino.translate(np.array([[-1, 0]]))
+                
+        self.__doDAScharge(-1)
 
     def __moveRight(self):
 
-        canMoveRight = True
+        # TODO: Replace repeated code block
+        if self.DAScharge == 0:
 
-        for x in range(0, self.currentTetromino.matrix.shape[0]):
-            for y in range(0, self.currentTetromino.matrix.shape[1]):
-                
-                if not self.currentTetromino.matrix[y, x] == 0:
+            canMoveRight = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[1, 0]]))
 
-                    pos = self.currentTetromino.pos + np.array([[x + 1, y]])
+            if canMoveRight:
+                self.currentTetromino.translate(np.array([[1, 0]]))
 
-                    if pos[0, 0] >= self.cols:
-                        canMoveRight = False
-                        break
-
-                    leftTile = self.grid[pos[0, 1], pos[0, 0]]
-                    if not leftTile == 0:
-                        canMoveRight = False
-                        break
-                
-        if canMoveRight:
-            self.currentTetromino.translate(np.array([[1, 0]]))
-
+        self.__doDAScharge(1)
 
     def __rotateLeft(self):
         self.__doRotation(1)
@@ -462,7 +478,6 @@ class Tetris:
 
         gsv, gsh, tsv, tsh = self.__getSlicesFromGridOverlap()
 
-        #############################################
         canPush = True
 
         for g, t in zip(self.grid[gsv, gsh], self.currentTetromino.matrix[tsv, tsh]):
@@ -489,7 +504,6 @@ class Tetris:
         # First line is a new empty line
         prevRow = np.copy(self.grid[0])
         self.grid[0].fill(0)
-        # Ensure this is not a reference, might need a clone.
 
         for i in range(1, end + 1):
             
@@ -533,9 +547,6 @@ class Tetris:
 
         return pieces
 
-        # self.bagRandom.integer(low = 0, high = len(pieces))
-
-
     def __getTetrominoMatrices(self):
         return {
             # I
@@ -559,13 +570,3 @@ class Tetris:
             # Z
             6: np.array([[7,7,0],[0,7,7],[0,0,0]])
         }
-
-# ac = getEmptyActionObj()
-# ac[Action.Left] = True
-
-# tet = Tetris()
-
-# for i in range(0, 10):
-#     tet.display()
-#     tet.nextState(ac)
-

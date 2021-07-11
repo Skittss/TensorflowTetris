@@ -7,7 +7,7 @@ import sys
 from colorama import init, Fore, Style
 from pynput import keyboard
 import cursor
-from config import Config
+from config import InteractiveConfig
 
 class Interactive:
 
@@ -15,7 +15,7 @@ class Interactive:
         init()
         self.tet= Tetris()
         self.escapeChars = {
-            "0": Fore.BLACK,
+            "0": Fore.WHITE,
             "1": Fore.CYAN,
             "2": Fore.BLUE,
             "3": Fore.YELLOW,
@@ -26,7 +26,7 @@ class Interactive:
         }
         self.ac = getEmptyActionObj()
 
-        self.keybindings = Config.keybindings
+        self.keybindings = InteractiveConfig.keybindings
 
         self.keyInfo = {
             self.keybindings[Action.Left]:          {"prev": False, "cur": False},
@@ -46,9 +46,9 @@ class Interactive:
     def __formatString(self, string):
 
         for k in self.escapeChars:
-            string = string.replace(k, f"{self.escapeChars[k]}{k}")+Style.RESET_ALL
+            string = string.replace(k, f"{self.escapeChars[k]}{k}{Style.RESET_ALL}")
 
-        string = string.replace("Next:", f"{Fore.WHITE}Next:{Style.RESET_ALL}").replace("Hold:", f"{Fore.WHITE}Hold:{Style.RESET_ALL}")
+        # string = string.replace("Next:", f"{Fore.WHITE}Next:{Style.RESET_ALL}").replace("Hold:", f"{Fore.WHITE}Hold:{Style.RESET_ALL}")
 
         return string
 
