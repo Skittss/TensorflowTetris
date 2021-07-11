@@ -16,8 +16,9 @@ class InteractiveConfig():
 
 class HandlingConfig():
 
-    DAS = 2
+    DAS = 1
     ARR = 1
+    SDF = 5
 
 class GameConfig():
 
@@ -25,4 +26,4 @@ class GameConfig():
     frameRate = 120
 
     lockDelay = 1
-    G = 20
+    G = 20      #  Ticks per drop.

@@ -84,7 +84,7 @@ class Tetris:
         self.score = 0
         self.__lost = False
 
-        # Grid information
+        # Grid information 
         self.cols = cols
         self.rows = rows
         self.grid = np.zeros([rows, cols])
@@ -97,14 +97,17 @@ class Tetris:
         self.__tick = 0
         self.__frame = 0
         self.__tickRate = gameConfig.tickRate
+        self.__G = gameConfig.G
         self.__frameRate = gameConfig.frameRate
 
-        # DAS, ARR, DCD, SDF
+        # DAS, ARR, SDF
         self.DAS = handlingConfig.DAS
         self.DAScharge = 0
 
         self.ARR = handlingConfig.ARR
         self.ARRframeTick = 0
+
+        self.SDF = handlingConfig.SDF
 
         # Hold & Current piece
         self.currentTetromino = None
@@ -223,7 +226,7 @@ class Tetris:
 
             uiRow += pieceRows + PIECEPAD - rowsSkipped
 
-        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff"
+        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tTick: {self.__tick}fff\tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff"
 
     def nextState(self, actions):
 
@@ -233,7 +236,7 @@ class Tetris:
 
             self.__popCurrentTetrominoFromGrid()
 
-            downwardMoveCount = self.__updateSubstep(actions)
+            downwardMoveCount = self.__updateTick(actions)
 
             self.__doActions(actions)
 
@@ -250,12 +253,15 @@ class Tetris:
                 self.__lost = not self.__getNextTetromino()
 
             self.__frame = (self.__frame + 1) % self.__frameRate
+            self.__tick = (self.__tick + 1) % self.__tickRate
 
         else:
             return False
 
-    def __updateSubstep(self, actions):
+    def __updateTick(self, actions):
         # Update the substep; If hard-drop, go to next full step, If soft drop, increment multiple times
+
+        
 
         if actions[Action.HardDrop]:
             self.__substep = 0
