@@ -1,6 +1,6 @@
 from tetris import Tetris, getEmptyActionObj
 from util import Action
-from time import sleep
+from time import sleep, time
 from interval import Interval
 import os
 import sys
@@ -89,6 +89,7 @@ class Interactive:
             self.keyInfo[k]["prev"] = self.keyInfo[k]["cur"]
 
     def __loop(self):
+
         self.__getActionFromInputs()
         self.__forwardAllKeyStates()
 
@@ -100,10 +101,8 @@ class Interactive:
         
         display = self.__formatString(str(self.tet))
 
-
         count = display.count('\n')
-        #sys.stdout.flush()
-        print(display, end=f"\x1b[{count}A")
+        print(display, end=f"\x1b[{count}A")    # print is current performance bottleneck. Limits framerate to effectively 10fps. Perhaps consider only re printing the characters which change?
 
     def __getKeyInfoDictKey(self, key):
 

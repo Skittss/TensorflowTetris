@@ -5,13 +5,19 @@ from enum import Enum
 from collections import deque
 from config import GameConfig, HandlingConfig
 
-# TODO      Modify piece spawn positions to be correctly centered.
+# TODO      
+#           Modify piece spawn positions to be correctly centered.
 #           Point System
-#           DAS, ARR, DCD, SCF
+#           Show points from line clears above/below points
+#           ---DAS, 
+#           ---ARR,
+#           SDF
 #           Lock delay
 #           Gravity - G
 #           Current actions displayed on __str__
 #           Left right actions take preference for most recently pressed
+#           Add line clear type to __str__ i.e. tetris / t-spin mini etc.
+#           Garbage meter with red # added to __str__
 
 def getEmptyActionObj():
     return {
@@ -68,7 +74,6 @@ class Tetris:
 
             return f"<Tetromino: {self.tag}-piece>"
             
-
     def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, 
                     handlingConfig = HandlingConfig,
                     gameConfig = GameConfig,
@@ -99,7 +104,7 @@ class Tetris:
         self.DAScharge = 0
 
         self.ARR = handlingConfig.ARR
-        self.ARRtick = 0
+        self.ARRframeTick = 0
 
         # Hold & Current piece
         self.currentTetromino = None
@@ -218,13 +223,13 @@ class Tetris:
 
             uiRow += pieceRows + PIECEPAD - rowsSkipped
 
-        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tDAS Charge: {self.DAScharge}fff"
+        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff"
 
     def nextState(self, actions):
 
         if not self.__lost:
 
-            self.__doDASreset(actions)
+            self.__doDASandARRreset(actions)
 
             self.__popCurrentTetrominoFromGrid()
 
@@ -287,49 +292,81 @@ class Tetris:
                 elif a == Action.Rotate180:
                     self.__rotate180()
 
-    def __doDASreset(self, actions):
+    def __doDASandARRreset(self, actions):
         if not actions[Action.Left] and not actions[Action.Right]:
             self.DAScharge = 0
+            self.ARRframeTick = 0
             return
 
         if self.DAScharge > 0 and actions[Action.Left] and not actions[Action.Right]:
             self.DAScharge = 0
+            self.ARRframeTick = 0
             return
 
         if self.DAScharge < 0 and not actions[Action.Left] and actions[Action.Right]:
             self.DAScharge = 0
+            self.ARRframeTick = 0
             return
 
-    def __doDAScharge(self, charge):
+    def __updateDASandARR(self, dasIncrement):
         
-        newCharge = self.DAScharge + charge
+        newCharge = self.DAScharge + dasIncrement
 
         if -self.DAS <= newCharge <= self.DAS:
             self.DAScharge = newCharge
+        else:
+            self.__incrementARRtick()
+
+    def __incrementARRtick(self):
+        if self.ARR > 0:
+            self.ARRframeTick = (self.ARRframeTick + 1) % self.ARR
+
+    def __canMoveOnCurrentFrame(self):
+        return self.DAScharge == 0 or (abs(self.DAScharge) == self.DAS and (self.ARRframeTick == self.ARR - 1 or self.ARR == 0))
+
+    def __doMove(self, translation):
+        canMove = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([translation]))
+
+        if canMove:
+            self.currentTetromino.translate(np.array([translation]))
+
+        return canMove
 
     def __moveLeft(self):
 
-        # TODO: Replace repeated code block
-        if self.DAScharge == 0:
+        if self.__canMoveOnCurrentFrame():
 
-            canMoveLeft = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[-1, 0]]))
+            canMove = self.__doMove([-1, 0])
 
-            if canMoveLeft:
-                self.currentTetromino.translate(np.array([[-1, 0]]))
+            # Move left until not possible any more
+            if self.ARR == 0 and abs(self.DAScharge) == self.DAS:
+                while canMove:
+                    canMove = self.__doMove([-1, 0])
                 
-        self.__doDAScharge(-1)
+
+            # canMoveLeft = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[-1, 0]]))
+
+            # if canMoveLeft:
+            #     self.currentTetromino.translate(np.array([[-1, 0]]))
+                
+        self.__updateDASandARR(-1)
 
     def __moveRight(self):
 
-        # TODO: Replace repeated code block
-        if self.DAScharge == 0:
+        if self.__canMoveOnCurrentFrame():
 
-            canMoveRight = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[1, 0]]))
+            canMove = self.__doMove([1, 0])
 
-            if canMoveRight:
-                self.currentTetromino.translate(np.array([[1, 0]]))
+            if self.ARR == 0 and abs(self.DAScharge) == self.DAS:
+                while canMove:
+                    canMove = self.__doMove([1, 0])
 
-        self.__doDAScharge(1)
+            # canMoveRight = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[1, 0]]))
+
+            # if canMoveRight:
+            #     self.currentTetromino.translate(np.array([[1, 0]]))
+
+        self.__updateDASandARR(1)
 
     def __rotateLeft(self):
         self.__doRotation(1)

@@ -16,7 +16,7 @@ class InteractiveConfig():
 
 class HandlingConfig():
 
-    DAS = 20
+    DAS = 2
     ARR = 1
 
 class GameConfig():
