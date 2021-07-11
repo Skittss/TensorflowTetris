@@ -1,7 +1,7 @@
 from util import Action
 from pynput import keyboard
 
-class Config():
+class InteractiveConfig():
 
     keybindings = {
         Action.Left:            keyboard.Key.left,
@@ -14,5 +14,15 @@ class Config():
         Action.Hold:            'c'
     }
 
+class HandlingConfig():
+
     DAS = 20
     ARR = 1
+
+class GameConfig():
+
+    tickRate = 60
+    frameRate = 120
+
+    lockDelay = 1
+    G = 20
