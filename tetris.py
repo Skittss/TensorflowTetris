@@ -1,6 +1,6 @@
 import numpy as np
 import math
-from util import Action
+from util import Action, KeyIcons
 from enum import Enum
 from collections import deque
 from config import GameConfig, HandlingConfig
@@ -11,13 +11,16 @@ from config import GameConfig, HandlingConfig
 #           Show points from line clears above/below points
 #           ---DAS, 
 #           ---ARR,
-#           SDF
-#           Lock delay
-#           Gravity - G
-#           Current actions displayed on __str__
+#           ---SDF
+#           ---Lock delay
+#           ---Gravity - G, If moved more than one downwards in a single frame, re-do input? Maybe not for now.
+#           ---Check spawn orientations. Reset orientation on hold.
+#           ---Fix wall kicks.
+#           ---Current actions displayed on __str__
 #           Left right actions take preference for most recently pressed
 #           Add line clear type to __str__ i.e. tetris / t-spin mini etc.
 #           Garbage meter with red # added to __str__
+#           Ghost piece added to __str__
 
 def getEmptyActionObj():
     return {
@@ -59,16 +62,19 @@ class Tetris:
         def rotate(self, k = 1):
 
             self.matrix = np.rot90(self.matrix, k)
-            self.rotateState = (self.rotateState + k) % 4
+            self.rotateState = (self.rotateState - k) % 4
 
         def getRotatedMatrix(self, k = 1):
 
             mat = np.rot90(self.matrix, k)
-            nextRotateState = (self.rotateState + k) % 4
+            nextRotateState = (self.rotateState - k) % 4
             return nextRotateState, mat
 
         def translate(self, vector):
             self.pos = np.add(self.pos, vector)
+
+        def resetMatrix(self, matrices):
+            self.matrix = matrices[self.tag]
 
         def __str__(self):
 
@@ -76,8 +82,8 @@ class Tetris:
             
     def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, 
                     handlingConfig = HandlingConfig,
-                    gameConfig = GameConfig,
-                    substeps = 5):
+                    gameConfig = GameConfig
+                ):
 
         
         # Pts & Game over
@@ -90,15 +96,12 @@ class Tetris:
         self.grid = np.zeros([rows, cols])
 
         # Framerate related info
-        self.substepsPerStep = substeps
-        self.softdropSubsteps = 3
-
-        self.__substep = 0
         self.__tick = 0
         self.__frame = 0
-        self.__tickRate = gameConfig.tickRate
         self.__G = gameConfig.G
         self.__frameRate = gameConfig.frameRate
+        self.__lockDelay = gameConfig.lockDelay
+        self.__lockTick = 0
 
         # DAS, ARR, SDF
         self.DAS = handlingConfig.DAS
@@ -124,14 +127,14 @@ class Tetris:
 
         # Wall kick tests - Could reduce hashmaps by noting "xy" == -"yx", but keep things simple for now.
         self.__wallKickTestsI = {
-            "01": np.array([[0,0], [-1,0], [-1,-1], [0, 2], [-1, 2]]),
-            "10": np.array([[0,0], [1, 0], [ 1, 1], [0,-2], [ 1,-2]]),
-            "12": np.array([[0,0], [1, 0], [ 1, 1], [0,-2], [ 1,-2]]),
-            "21": np.array([[0,0], [-1,0], [-1,-1], [0, 2], [-1, 2]]),
-            "23": np.array([[0,0], [1, 0], [ 1,-1], [0, 2], [ 1, 2]]),
-            "32": np.array([[0,0], [-1,0], [-1, 1], [0,-2], [-1,-2]]),
-            "30": np.array([[0,0], [-1,0], [-1, 1], [0,-2], [-1,-2]]),
-            "03": np.array([[0,0], [1, 0], [ 1,-1], [0, 2], [ 1, 2]]),
+            "01": np.array([[0,0], [-2,0], [1, 0], [-2, 1], [ 1,-2]]),
+            "10": np.array([[0,0], [2, 0], [-1,0], [ 2,-1], [-1, 2]]),
+            "12": np.array([[0,0], [-1,0], [2 ,0], [-1,-2], [ 2, 1]]),
+            "21": np.array([[0,0], [1, 0], [-2,0], [ 1, 2], [-2,-1]]),
+            "23": np.array([[0,0], [2, 0], [-1,0], [ 2,-1], [-1, 2]]),
+            "32": np.array([[0,0], [-2,0], [1, 0], [-2, 1], [ 1,-2]]),
+            "30": np.array([[0,0], [1, 0], [-2,0], [ 1, 2], [-2,-1]]),
+            "03": np.array([[0,0], [-1,0], [2, 0], [-1,-2], [ 2, 1]]),
 
             "02": np.array([[0,0], [-1, 0], [-2, 0], [ 1, 0], [ 2, 0]]),
             "20": np.array([[0,0], [ 0, 1], [ 0,-1], [ 0,-2], [ 0, 2]]),
@@ -142,14 +145,14 @@ class Tetris:
         self.__wallKickTestsO = np.array([[0,0]])
 
         self.__wallKickTestsOther = {
-            "01": np.array([[0,0], [-2,0], [1, 0], [-2, 1], [ 1,-2]]),
-            "10": np.array([[0,0], [2, 0], [-1,0], [ 2,-1], [-1, 2]]),
-            "12": np.array([[0,0], [-1,0], [2 ,0], [-1,-2], [ 2, 1]]),
-            "21": np.array([[0,0], [1, 0], [-2,0], [ 1, 2], [-2,-1]]),
-            "23": np.array([[0,0], [2, 0], [-1,0], [ 2,-1], [-1, 2]]),
-            "32": np.array([[0,0], [-2,0], [1, 0], [-2, 1], [ 1,-2]]),
-            "30": np.array([[0,0], [1, 0], [-2,0], [ 1, 2], [-2,-1]]),
-            "03": np.array([[0,0], [-1,0], [2, 0], [-1,-2], [ 2, 1]]),
+            "01": np.array([[0,0], [-1,0], [-1,-1], [0, 2], [-1, 2]]),
+            "10": np.array([[0,0], [1, 0], [ 1, 1], [0,-2], [ 1,-2]]),
+            "12": np.array([[0,0], [1, 0], [ 1, 1], [0,-2], [ 1,-2]]),
+            "21": np.array([[0,0], [-1,0], [-1,-1], [0, 2], [-1, 2]]),
+            "23": np.array([[0,0], [1, 0], [ 1,-1], [0, 2], [ 1, 2]]),
+            "32": np.array([[0,0], [-1,0], [-1, 1], [0,-2], [-1,-2]]),
+            "30": np.array([[0,0], [-1,0], [-1, 1], [0,-2], [-1,-2]]),
+            "03": np.array([[0,0], [1, 0], [ 1,-1], [0, 2], [ 1, 2]]),
 
             "02": np.array([[0,0], [ 0,-1], [ 1,-1], [-1,-1], [ 1, 0], [-1, 0]]),
             "20": np.array([[0,0], [ 0, 1], [-1, 1], [ 1, 1], [-1, 0], [ 1, 0]]),
@@ -192,8 +195,6 @@ class Tetris:
         bagText = "Next:"
         string[UIVERTICALPAD] = string[UIVERTICALPAD][:N-len(holdText) - MINPAD] + holdText + string[UIVERTICALPAD][N - MINPAD:len(string[UIVERTICALPAD]) - N + MINPAD] + bagText + string[UIVERTICALPAD][len(string[UIVERTICALPAD]) - N + len(bagText) + MINPAD : len(string[UIVERTICALPAD])]
 
-
-
         if self.heldTetromino:
 
             # Can move this to function (albeit with quite a few params) for re-use below
@@ -206,8 +207,10 @@ class Tetris:
 
 
         uiRow = UIVERTICALPAD + 1 + PIECEPAD
-        for piece in self.bag:
+        
+        for i in range(0, 5):
             
+            piece = self.bag[i]
             pieceMatrix = piece.matrix
             pieceRows = pieceMatrix.shape[1]
             rowsSkipped = 0
@@ -226,7 +229,20 @@ class Tetris:
 
             uiRow += pieceRows + PIECEPAD - rowsSkipped
 
-        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tTick: {self.__tick}fff\tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff"
+        # Add current actions:
+
+        actionStr = [
+            f"\t{KeyIcons.entries[Action.RotateLeft]}\t{KeyIcons.entries[Action.RotateRight]}\t{KeyIcons.entries[Action.Hold]}\t\t{KeyIcons.entries[Action.Left]}\t\t{KeyIcons.entries[Action.Right]}",
+            f"\t\t\t\t\t\t{KeyIcons.entries[Action.SoftDrop]}",
+            f"\t\t\t{KeyIcons.entries[Action.HardDrop]}"
+        ]
+
+        ACTION_VERT_PAD = 4
+
+        for i in range(0, len(actionStr)):
+            string[ACTION_VERT_PAD + i] += actionStr[i]
+
+        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tTick: {self.__tick}fff\tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff\tLock tick: {self.__lockTick}fff"
 
     def nextState(self, actions):
 
@@ -246,6 +262,8 @@ class Tetris:
 
             if pieceDropped:
 
+                self.__lockTick = 0
+
                 self.heldLastPiece = False
 
                 self.__clearLines()
@@ -253,7 +271,6 @@ class Tetris:
                 self.__lost = not self.__getNextTetromino()
 
             self.__frame = (self.__frame + 1) % self.__frameRate
-            self.__tick = (self.__tick + 1) % self.__tickRate
 
         else:
             return False
@@ -261,17 +278,15 @@ class Tetris:
     def __updateTick(self, actions):
         # Update the substep; If hard-drop, go to next full step, If soft drop, increment multiple times
 
-        
-
         if actions[Action.HardDrop]:
-            self.__substep = 0
+            self.__tick = 0
             return -1
 
         if actions[Action.SoftDrop]:
-            downMoves, self.__substep = divmod(self.__substep + self.softdropSubsteps, self.substepsPerStep)
+            downMoves, self.__tick = divmod(self.__tick + self.SDF, self.__G)
             return downMoves
 
-        downMoves, self.__substep = divmod(self.__substep + 1, self.substepsPerStep)
+        downMoves, self.__tick = divmod(self.__tick + 1, self.__G)
         return downMoves
     
 
@@ -349,12 +364,6 @@ class Tetris:
                 while canMove:
                     canMove = self.__doMove([-1, 0])
                 
-
-            # canMoveLeft = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[-1, 0]]))
-
-            # if canMoveLeft:
-            #     self.currentTetromino.translate(np.array([[-1, 0]]))
-                
         self.__updateDASandARR(-1)
 
     def __moveRight(self):
@@ -366,11 +375,6 @@ class Tetris:
             if self.ARR == 0 and abs(self.DAScharge) == self.DAS:
                 while canMove:
                     canMove = self.__doMove([1, 0])
-
-            # canMoveRight = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[1, 0]]))
-
-            # if canMoveRight:
-            #     self.currentTetromino.translate(np.array([[1, 0]]))
 
         self.__updateDASandARR(1)
 
@@ -396,6 +400,7 @@ class Tetris:
         nextRotateState, rotatedMatrix = self.currentTetromino.getRotatedMatrix(k)
 
         for testTranslation in self.__getWallKickTests(nextRotateState):
+            newPos = self.currentTetromino.pos + testTranslation
             if self.__canPlaceOnGrid(rotatedMatrix, self.currentTetromino.pos + testTranslation):
                 return testTranslation
 
@@ -449,6 +454,9 @@ class Tetris:
             # Reset pos of current piece
             self.currentTetromino.resetPos()
 
+            # Reset orientation of current piece
+            self.currentTetromino.resetMatrix(self.tetrominoMatrices)
+
             # Swap hold piece if exists
             if self.heldTetromino:
                 tmp = self.currentTetromino
@@ -493,7 +501,7 @@ class Tetris:
                         break
                 
         if canMoveDown:
-
+            
             if (not count == 0):
                 self.currentTetromino.translate(np.array([[0, 1]]))
 
@@ -504,7 +512,12 @@ class Tetris:
             elif (count < 0):
                 dropped = self.__attemptDownwardMoves(count)
                 return dropped
-            
+
+        else:
+            if self.__lockTick < self.__lockDelay and not count < 0:
+                self.__lockTick += 1
+                canMoveDown = True
+        
         return not canMoveDown
 
     def __getNextTetromino(self):

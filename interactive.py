@@ -1,5 +1,5 @@
 from tetris import Tetris, getEmptyActionObj
-from util import Action
+from util import Action, KeyIcons
 from time import sleep, time
 from interval import Interval
 import os
@@ -43,11 +43,19 @@ class Interactive:
         self.inputListener = None
         self.exitListener = None
 
+    def __colourActiveInputs(self, string):
+        for k in KeyIcons.entries:
+            if self.ac[k]:
+                string = string.replace(f"\t{KeyIcons.entries[k]}", f"\t{Fore.RED}{KeyIcons.entries[k]}{Style.RESET_ALL}")
+
+        return string
+
     def __formatString(self, string):
 
         for k in self.escapeChars:
             string = string.replace(k, f"{self.escapeChars[k]}{k}{Style.RESET_ALL}")
 
+        string = self.__colourActiveInputs(string)
         # string = string.replace("Next:", f"{Fore.WHITE}Next:{Style.RESET_ALL}").replace("Hold:", f"{Fore.WHITE}Hold:{Style.RESET_ALL}")
 
         return string

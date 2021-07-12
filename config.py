@@ -16,14 +16,14 @@ class InteractiveConfig():
 
 class HandlingConfig():
 
-    DAS = 1
+    DAS = 2
     ARR = 1
-    SDF = 5
+    SDF = 60    # Ticks per frame while softdropping (normal drop = 1 tick/frame)
 
 class GameConfig():
 
-    tickRate = 60
-    frameRate = 120
+    useSevenBag = True
 
-    lockDelay = 1
+    frameRate = 120
     G = 20      #  Ticks per drop.
+    lockDelay = 10

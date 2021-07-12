@@ -9,3 +9,16 @@ class Action(Enum):
     RotateRight = 5
     Rotate180 = 6
     Hold = 7
+
+class KeyIcons:
+
+    entries = {
+        Action.Left: "<-",
+        Action.Right: "->",
+        Action.SoftDrop: "\/",
+        Action.HardDrop: "H DROP",
+        Action.RotateLeft: "CCW",
+        Action.RotateRight: "CW",
+        Action.Rotate180: "180",
+        Action.Hold: "HOLD"
+    }
