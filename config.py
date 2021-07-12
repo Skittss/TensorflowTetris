@@ -1,5 +1,6 @@
 from util import Action
 from pynput import keyboard
+from colorama import Fore, Style
 
 class InteractiveConfig():
 
@@ -13,6 +14,20 @@ class InteractiveConfig():
         Action.Rotate180:       'x',
         Action.Hold:            'c'
     }
+
+    pieceStyles = {
+        "0": Fore.WHITE,
+        "1": Fore.CYAN,
+        "2": Fore.BLUE,
+        "3": Fore.YELLOW,
+        "4": Fore.LIGHTYELLOW_EX,
+        "5": Fore.GREEN,
+        "6": Fore.MAGENTA,
+        "7": Fore.RED
+    }
+
+    ghostPieceStyle = Style.BRIGHT + Fore.CYAN
+    ghostCharacter = "@"
 
 class HandlingConfig():
 

@@ -19,6 +19,6 @@ class KeyIcons:
         Action.HardDrop: "H DROP",
         Action.RotateLeft: "CCW",
         Action.RotateRight: "CW",
-        Action.Rotate180: "180",
+        Action.Rotate180: "FLIP",
         Action.Hold: "HOLD"
     }

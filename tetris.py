@@ -17,6 +17,7 @@ from config import GameConfig, HandlingConfig
 #           ---Check spawn orientations. Reset orientation on hold.
 #           ---Fix wall kicks.
 #           ---Current actions displayed on __str__
+#           Hidden rows
 #           Left right actions take preference for most recently pressed
 #           Add line clear type to __str__ i.e. tetris / t-spin mini etc.
 #           Garbage meter with red # added to __str__
@@ -74,7 +75,7 @@ class Tetris:
             self.pos = np.add(self.pos, vector)
 
         def resetMatrix(self, matrices):
-            self.matrix = matrices[self.tag]
+            self.matrix = matrices[self.tag]            
 
         def __str__(self):
 
@@ -111,6 +112,9 @@ class Tetris:
         self.ARRframeTick = 0
 
         self.SDF = handlingConfig.SDF
+
+        # Left / Right action preference for when both are pressed on the same frame
+        self.LRpreference = None
 
         # Hold & Current piece
         self.currentTetromino = None
@@ -168,24 +172,69 @@ class Tetris:
     def display(self):
         print(self.grid)
 
-    def __str__(self):
+    # def matchesTetrominoPart(self, c):
+    #     try:
+    #         v = int(c)
+    #         return v >= 0
 
-        string = str(self.grid).replace('[',"").replace(']',"").replace('.',"").split("\n")
+    #     except:
+    #         return False
 
-        MINPAD = 5  # minimum horizontal padding
-        N = MINPAD + 10 # total characters
+    # def __indexOfMatch(self, string, cmp, start = 0):
+    #     for i, chr in enumerate(string[start:]):
+    #         if cmp(chr):
+    #             return i + start
+        
+    #     return -1
 
-        UIVERTICALPAD = 1
-        PIECEPAD = 1
+    # def __findNth(self, string, cmp, n):
+    #     idx = 0
+    #     for i in range(0, n):
+    #         next = self.__indexOfMatch(string, cmp, start = idx)
+
+    #         if next < 0:
+    #             return -1
+
+    #         idx = next + 1
+
+    #     return idx - 1
+
+    def __gridToStringList(self):
+
+        return [[str(int(v)) for v in row] for row in self.grid]
+
+    def toString(self, MINPAD = 5, EXTRAPAD = 10, UIVERTICALPAD = 1, PIECEPAD = 1, ACTIONVERTPAD = 4, SHOWGHOST = True, GHOSTCHARACTER = "@"):
+
+        # Get rid of all the garbage from numpy str. Perhaps consider implementing a faster version of this.
+        string = self.__gridToStringList()
+        # Add ghost piece:
+
+        if SHOWGHOST:
+            ghostPos = self.__findCurrentHarddropPosition()
+            # ghostTetromino = self.Tetromino(self.tetrominoMatrices, ghostPos, self.currentTetromino.tag)
+            # ghostTetromino.makeMatrixGhost()
+
+            for i in range(0, len(self.currentTetromino.matrix)):
+                matrixRow = self.currentTetromino.matrix[i]
+                try:
+                    row = string[ghostPos[0, 1] + i]
+
+                    for (j,), v in np.ndenumerate(matrixRow):
+                        if not v == 0 and row[ghostPos[0, 0] + j] == "0":
+                            row[ghostPos[0, 0] + j] = GHOSTCHARACTER
+
+                except IndexError:
+                    pass
+                    
+        string = [" ".join(s) for s in string]
+
+        # Pad the grid, add Hold and Preview.
+
+        N = MINPAD + EXTRAPAD # total characters
 
         padding = " "*N
         for i, line in enumerate(string):
-            if i > 0:
-                l = line[1:]
-            else:
-                l = line
-
-            string[i] = padding + l + padding
+            string[i] = padding + line + padding
 
         if len(string) < 8:
             for i in range (0, 8 - len(string)):
@@ -232,17 +281,15 @@ class Tetris:
         # Add current actions:
 
         actionStr = [
-            f"\t{KeyIcons.entries[Action.RotateLeft]}\t{KeyIcons.entries[Action.RotateRight]}\t{KeyIcons.entries[Action.Hold]}\t\t{KeyIcons.entries[Action.Left]}\t\t{KeyIcons.entries[Action.Right]}",
-            f"\t\t\t\t\t\t{KeyIcons.entries[Action.SoftDrop]}",
-            f"\t\t\t{KeyIcons.entries[Action.HardDrop]}"
+            f"\t{KeyIcons.entries[Action.RotateLeft]}\t{KeyIcons.entries[Action.RotateRight]}\t{KeyIcons.entries[Action.Rotate180]}\t\t{KeyIcons.entries[Action.Hold]}\t{KeyIcons.entries[Action.Left]}\t\t{KeyIcons.entries[Action.Right]}",
+            f"\t\t\t\t\t\t\t{KeyIcons.entries[Action.SoftDrop]}",
+            f"\t\t\t\t\t{KeyIcons.entries[Action.HardDrop]}"
         ]
 
-        ACTION_VERT_PAD = 4
-
         for i in range(0, len(actionStr)):
-            string[ACTION_VERT_PAD + i] += actionStr[i]
+            string[ACTIONVERTPAD + i] += actionStr[i]
 
-        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tTick: {self.__tick}fff\tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff\tLock tick: {self.__lockTick}fff"
+        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tTick: {self.__tick}fff\tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff\tLock tick: {self.__lockTick}fff\nDrop Hover: {ghostPos}ffffff\tPiece Pos: {self.currentTetromino.pos}ffffff"
 
     def nextState(self, actions):
 
@@ -400,7 +447,6 @@ class Tetris:
         nextRotateState, rotatedMatrix = self.currentTetromino.getRotatedMatrix(k)
 
         for testTranslation in self.__getWallKickTests(nextRotateState):
-            newPos = self.currentTetromino.pos + testTranslation
             if self.__canPlaceOnGrid(rotatedMatrix, self.currentTetromino.pos + testTranslation):
                 return testTranslation
 
@@ -420,7 +466,6 @@ class Tetris:
         return tests[str(self.currentTetromino.rotateState) + str(nextRotateState)]
 
     def __canPlaceOnGrid(self, matrix, pos):
-        # Could possibly replace canMoveLeft & Right functions with this function.
 
         for x in range(0, matrix.shape[0]):
             for y in range(0, matrix.shape[1]):
@@ -480,25 +525,42 @@ class Tetris:
 
         return nextTetromino
 
-    def __attemptDownwardMoves(self, count):
-        
+    def __findCurrentHarddropPosition(self):
+
+        self.__popCurrentTetrominoFromGrid()
+
+        downMoves = 0
         canMoveDown = True
 
-        for x in range(0, self.currentTetromino.matrix.shape[1]):
-            for y in range(0, self.currentTetromino.matrix.shape[0]):
+        while canMoveDown:
+            canMoveDown = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[0, downMoves]]))
 
-                if not self.currentTetromino.matrix[y, x] == 0:
+            if canMoveDown:
+                downMoves += 1
 
-                    pos = self.currentTetromino.pos + np.array([[x, y + 1]])
+        self.__pushCurrentTetrominoToGrid()
 
-                    if pos[0, 1] >= self.rows:
-                        canMoveDown = False
-                        break
+        return self.currentTetromino.pos + np.array([[0, downMoves - 1]])
 
-                    belowTile = self.grid[pos[0, 1], pos[0, 0]]
-                    if not belowTile == 0:
-                        canMoveDown = False
-                        break
+    def __attemptDownwardMoves(self, count):
+        
+        canMoveDown = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[0, 1]]))
+
+        # for x in range(0, self.currentTetromino.matrix.shape[1]):
+        #     for y in range(0, self.currentTetromino.matrix.shape[0]):
+
+        #         if not self.currentTetromino.matrix[y, x] == 0:
+
+        #             pos = self.currentTetromino.pos + np.array([[x, y + 1]])
+
+        #             if pos[0, 1] >= self.rows:
+        #                 canMoveDown = False
+        #                 break
+
+        #             belowTile = self.grid[pos[0, 1], pos[0, 0]]
+        #             if not belowTile == 0:
+        #                 canMoveDown = False
+        #                 break
                 
         if canMoveDown:
             

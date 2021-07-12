@@ -14,16 +14,11 @@ class Interactive:
     def __init__(self):
         init()
         self.tet= Tetris()
-        self.escapeChars = {
-            "0": Fore.WHITE,
-            "1": Fore.CYAN,
-            "2": Fore.BLUE,
-            "3": Fore.YELLOW,
-            "4": Fore.LIGHTYELLOW_EX,
-            "5": Fore.GREEN,
-            "6": Fore.MAGENTA,
-            "7": Fore.RED
-        }
+
+        self.escapeChars = InteractiveConfig.pieceStyles
+        self.ghostPieceStyle = InteractiveConfig.ghostPieceStyle
+        self.ghostCharacter =InteractiveConfig.ghostCharacter
+
         self.ac = getEmptyActionObj()
 
         self.keybindings = InteractiveConfig.keybindings
@@ -55,8 +50,9 @@ class Interactive:
         for k in self.escapeChars:
             string = string.replace(k, f"{self.escapeChars[k]}{k}{Style.RESET_ALL}")
 
+        string = string.replace(self.ghostCharacter, f"{self.ghostPieceStyle}{self.ghostCharacter}{Style.RESET_ALL}")
+
         string = self.__colourActiveInputs(string)
-        # string = string.replace("Next:", f"{Fore.WHITE}Next:{Style.RESET_ALL}").replace("Hold:", f"{Fore.WHITE}Hold:{Style.RESET_ALL}")
 
         return string
 
@@ -107,7 +103,7 @@ class Interactive:
             self.__init__()
             return
         
-        display = self.__formatString(str(self.tet))
+        display = self.__formatString(self.tet.toString(GHOSTCHARACTER=self.ghostCharacter))
 
         count = display.count('\n')
         print(display, end=f"\x1b[{count}A")    # print is current performance bottleneck. Limits framerate to effectively 10fps. Perhaps consider only re printing the characters which change?
