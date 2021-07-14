@@ -8,16 +8,13 @@ from colorama import init, Fore, Style
 from pynput import keyboard
 import cursor
 from config import InteractiveConfig
+init()
 
 class Interactive:
 
     def __init__(self):
         init()
         self.tet= Tetris()
-
-        self.escapeChars = InteractiveConfig.pieceStyles
-        self.ghostPieceStyle = InteractiveConfig.ghostPieceStyle
-        self.ghostCharacter =InteractiveConfig.ghostCharacter
 
         self.ac = getEmptyActionObj()
 
@@ -41,16 +38,17 @@ class Interactive:
     def __colourActiveInputs(self, string):
         for k in KeyIcons.entries:
             if self.ac[k]:
-                string = string.replace(f"\t{KeyIcons.entries[k]}", f"\t{Fore.RED}{KeyIcons.entries[k]}{Style.RESET_ALL}")
+                string = string.replace(f"\t{KeyIcons.entries[k]}", f"\t{InteractiveConfig.actionHighlightStyle}{KeyIcons.entries[k]}{Style.RESET_ALL}")
 
         return string
 
     def __formatString(self, string):
 
-        for k in self.escapeChars:
-            string = string.replace(k, f"{self.escapeChars[k]}{k}{Style.RESET_ALL}")
+        for k in InteractiveConfig.pieceStyles:
+            replaceString = InteractiveConfig.pieceStyles[k] + k + Style.RESET_ALL
+            string = string.replace(k, replaceString)
 
-        string = string.replace(self.ghostCharacter, f"{self.ghostPieceStyle}{self.ghostCharacter}{Style.RESET_ALL}")
+        string = string.replace(InteractiveConfig.ghostCharacter, f"{InteractiveConfig.ghostPieceStyle}{InteractiveConfig.ghostCharacter}{Style.RESET_ALL}")
 
         string = self.__colourActiveInputs(string)
 
@@ -71,7 +69,7 @@ class Interactive:
 
     def __getActionFromInputs(self):
 
-        self.__doActionCheck(Action.Left, self.__isActionDown)     
+        self.__doActionCheck(Action.Left, self.__isActionDown) 
 
         self.__doActionCheck(Action.Right, self.__isActionDown)
 
@@ -83,15 +81,15 @@ class Interactive:
 
         self.__doActionCheck(Action.Rotate180, self.__isActionToggled)
 
-        self.__doActionCheck(Action.Hold, self.__isActionToggled)
-
+        self.__doActionCheck(Action.Hold, self.__isActionToggled) 
+  
         self.__doActionCheck(Action.HardDrop, self.__isActionToggled)
 
     def __forwardAllKeyStates(self):
 
         for k in self.keyInfo:
             self.keyInfo[k]["prev"] = self.keyInfo[k]["cur"]
-
+      
     def __loop(self):
 
         self.__getActionFromInputs()
@@ -103,7 +101,7 @@ class Interactive:
             self.__init__()
             return
         
-        display = self.__formatString(self.tet.toString(GHOSTCHARACTER=self.ghostCharacter))
+        display = self.__formatString(self.tet.toString(GHOSTCHARACTER=InteractiveConfig.ghostCharacter))
 
         count = display.count('\n')
         print(display, end=f"\x1b[{count}A")    # print is current performance bottleneck. Limits framerate to effectively 10fps. Perhaps consider only re printing the characters which change?

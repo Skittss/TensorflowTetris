@@ -22,3 +22,18 @@ class KeyIcons:
         Action.Rotate180: "FLIP",
         Action.Hold: "HOLD"
     }
+
+class ScoreTypes(Enum):
+    Drop = 0
+    HardDrop = 1
+    Single = 2
+    Double = 3
+    Triple = 4
+    Tetris = 5
+    MiniTSpin = 6
+    TSpin = 7
+    MiniTSpinSingle = 8
+    MiniTSpinDouble = 9
+    TSpinSingle = 10
+    TSpinDouble = 11
+    TSpinTriple = 12
