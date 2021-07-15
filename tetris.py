@@ -8,7 +8,7 @@ from config import GameConfig, HandlingConfig
 # TODO      
 #           ---Modify piece spawn positions to be correctly centered.
 #           ---Point System
-#           Show points from line clears above/below points
+#           ---Show points from line clears above/below points
 #           ---DAS, 
 #           ---ARR,
 #           ---SDF
@@ -18,7 +18,7 @@ from config import GameConfig, HandlingConfig
 #           ---Fix wall kicks.
 #           ---Current actions displayed on __str__
 #           Hidden rows
-#           Add line clear type to __str__ i.e. tetris / t-spin mini etc.
+#           ---Add line clear type to __str__ i.e. tetris / t-spin mini etc.
 #           Garbage meter with red # added to __str__
 #           ---Ghost piece added to __str__
 
@@ -48,8 +48,6 @@ class Tetris:
     class Tetromino:
 
         def __init__(self, matrices, startPos, tag = 0, centreStartPos = True):
-
-
 
             self.tag = tag
             self.matrix = matrices[tag]
@@ -88,15 +86,38 @@ class Tetris:
         def __str__(self):
 
             return f"<Tetromino: {self.tag}-piece>"
+
+    class GarbageList:
+
+        def __init__(self, DELAY):
+            self.garbage = []
+            self.delay = DELAY
+
+        def add(self, n):
+            for i in range(0, n):
+                self.garbage.append(self.delay)
+
+        def tick(self):
+            count = 0
+            for g in range(0, len(self.garbage)):
+                self.garbage[g] -= 1
+                if self.garbage[g] <= 0:
+                    count += 1
+
+            self.garbage = [x for x in self.garbage if x > 0]
+
+            return count
+
+        def pending(self):
+            return len(self.garbage)
             
-    def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, 
+    def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, garbageSeed = 933,
                     handlingConfig = HandlingConfig,
                     gameConfig = GameConfig
                 ):
+        # toString specific
+        self.__lastDropClass = None
 
-        # DEBUG
-        self.lastDropClass = None
-        
         # Pts & Game over
         self.score = 0
         self.__lost = False
@@ -104,7 +125,8 @@ class Tetris:
         # Grid information 
         self.cols = cols
         self.rows = rows
-        self.grid = np.zeros([rows, cols])
+        self.hiddenRows = rows
+        self.grid = np.zeros([self.rows, self.cols])
 
         # Framerate related info
         self.__tick = 0
@@ -136,6 +158,11 @@ class Tetris:
         self.bagRandom = np.random.default_rng(seed = seed)
         self.bag = self.__getBag(bagSize)
 
+        # Garbage
+        self.garbageRandom = np.random.default_rng(seed = garbageSeed)
+        self.garbageValue = 9
+        self.garbage = self.GarbageList(gameConfig.garbageDelay)
+
         # Wall kick tests - Could reduce hashmaps by noting "xy" == -"yx", but keep things simple for now.
         self.__wallKickTestsI = gameConfig.I_kicks
 
@@ -144,7 +171,8 @@ class Tetris:
         self.__wallKickTestsOther = gameConfig.Other_kicks
 
         self.__getNextTetromino()
-        
+
+        self.sendGarbage(5)
 
     def display(self):
         print(self.grid)
@@ -176,15 +204,16 @@ class Tetris:
 
     #     return idx - 1
 
-    def __gridToStringList(self):
+    def __gridToStringList(self, garbageCharacter):
 
-        return [[str(int(v)) for v in row] for row in self.grid]
+        return [[str(int(v)) if not v == self.garbageValue else garbageCharacter for v in row] for row in self.grid]
 
     ## Consider moving this to another file after making another function which gives the necessary information to produce this output.
-    def toString(self, MINPAD = 5, EXTRAPAD = 10, UIVERTICALPAD = 1, PIECEPAD = 1, ACTIONVERTPAD = 4, SHOWGHOST = True, GHOSTCHARACTER = "@"):
+    def toString(self, MINPAD = 5, EXTRAPAD = 10, UIVERTICALPAD = 1, PIECEPAD = 1, ACTIONVERTPAD = 4, SHOWGHOST = True, GHOSTCHARACTER = "@", GARBAGECHARACTER = "#", DEBUG = False):
 
         # Get rid of all the garbage from numpy str. Perhaps consider implementing a faster version of this.
-        string = self.__gridToStringList()
+        string = self.__gridToStringList(GARBAGECHARACTER)
+
         # Add ghost piece:
 
         if SHOWGHOST:
@@ -202,8 +231,16 @@ class Tetris:
                 except IndexError:
                     pass
                     
-        string = [f"█{' '.join(s)}█" for s in string] 
+        string = [f"█{' '.join(s)}▌" for s in string] 
         string = ["▄"*len(string[0])] + string + ["▀"*len(string[0])]
+
+        # Add garbage indicator
+
+        garbageCount = self.garbage.pending()
+        garbageStr = ["▄"] + [GARBAGECHARACTER if row < garbageCount else " " for row in range(self.hiddenRows)][::-1] + ["▀"]
+        rightBoundary = ["▄"] + ["▐" for i in range(self.hiddenRows)] + ["▀"]
+
+        string = [row + garbageStr[i] + rightBoundary[i] for i, row in enumerate(string)]
 
         # Pad the grid, add Hold and Preview.
 
@@ -266,7 +303,21 @@ class Tetris:
         for i in range(0, len(actionStr)):
             string[ACTIONVERTPAD + i] += actionStr[i]
 
-        return "\n\n" + "\n".join(string) + f"\n\nFrame: {self.__frame}ff \tTick: {self.__tick}fff\tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff\tLock tick: {self.__lockTick}fff\nDrop Hover: {ghostPos}ffffff\tPiece Pos: {self.currentTetromino.pos}ffffff\tLast move was rotate: {self.currentTetromino.lastMoveWasRotate}fffff\nScore: {self.score}fffff"
+        # Create a separate score string
+        scoreToString = f"{self.score}pts"
+        scorePadLength = max(0, int(len(string[-1]) // 2 - len(scoreToString) // 2))
+        scoreString = " "*scorePadLength + scoreToString
+        scoreString = scoreString + " "*(len(string[-1]) - len(scoreString))
+
+        #DEBUG
+
+        if DEBUG:
+            debugStr = f"\n\nFrame: {self.__frame}ff \tTick: {self.__tick}fff\tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff\tLock tick: {self.__lockTick}fff\nDrop Hover: {ghostPos}ffffff\tPiece Pos: {self.currentTetromino.pos}ffffff\tLast move was rotate: {self.currentTetromino.lastMoveWasRotate}fffff\nScore: {self.score}fffff"
+        else:
+            debugStr = ""
+
+        # @Return Main grid string (+ opt debugging), score string, previous drop type for prompts.
+        return "\n" + "\n".join(string) + debugStr, scoreString, self.__lastDropClass
 
     def nextState(self, actions):
 
@@ -276,33 +327,45 @@ class Tetris:
 
             self.__popCurrentTetrominoFromGrid()
 
-            downwardMoveCount = self.__updateTick(actions)
+            linesToAdd = self.garbage.tick()
 
-            self.__doActions(actions)
+            self.__lost = self.__addGarbageLines(linesToAdd)
 
-            pieceDropped = self.__attemptDownwardMoves(downwardMoveCount)
+            # Adding garbage may cause top-out
+            if not self.__lost:
 
-            self.__pushCurrentTetrominoToGrid()
+                downwardMoveCount = self.__updateTick(actions)
 
-            if pieceDropped:
+                self.__doActions(actions)
 
-                self.__lockTick = 0
+                pieceDropped = self.__attemptDownwardMoves(downwardMoveCount)
 
-                self.heldLastPiece = False
+                self.__pushCurrentTetrominoToGrid()
 
-                # Don't actually clear lines the first time around else it messes up the classification
-                linesCleared = self.__clearLines(clear = False)
+                if pieceDropped:
 
-                self.score += GameConfig.scoreTable[self.__classifyDrop(linesCleared)]
+                    self.__lockTick = 0
 
-                self.__clearLines()
+                    self.heldLastPiece = False
 
-                self.__lost = not self.__getNextTetromino()
+                    # Don't actually clear lines the first time around else it messes up the classification
+                    linesCleared = self.__clearLines(clear = False)
+
+                    self.__lastDropClass = self.__classifyDrop(linesCleared)
+
+                    self.score += GameConfig.scoreTable[self.__lastDropClass]
+
+                    self.__clearLines()
+
+                    self.__lost = not self.__getNextTetromino()
 
             self.__frame = (self.__frame + 1) % self.__frameRate
 
         else:
             return False
+
+    def sendGarbage(self, n):
+        self.garbage.add(n)
 
     def __withinGrid(self, pos):
         return 0 < pos[0, 0] < self.cols and 0 < pos[0, 1] < self.rows
@@ -311,8 +374,6 @@ class Tetris:
         if not self.__withinGrid(pos):
             return True
 
-        check1 = self.grid[self.currentTetromino.pos[0, 1]]
-        check = self.grid[self.currentTetromino.pos[0, 1], self.currentTetromino.pos[0, 0]]
         return self.grid[self.currentTetromino.pos[0, 1], self.currentTetromino.pos[0, 0]] > 0
 
     def __getTbackAndFrontOffsets(self):
@@ -681,7 +742,7 @@ class Tetris:
 
         self.grid[gsv, gsh] -= self.currentTetromino.matrix[tsv, tsh]
 
-    def __pushCurrentTetrominoToGrid(self):
+    def __pushCurrentTetrominoToGrid(self, doPush=True):
 
         gsv, gsh, tsv, tsh = self.__getSlicesFromGridOverlap()
 
@@ -693,10 +754,41 @@ class Tetris:
                     canPush = False
                     break
 
-        if canPush:
+        if canPush and doPush:
             self.grid[gsv, gsh] += self.currentTetromino.matrix[tsv, tsh]
 
         return canPush
+
+    def __addGarbageLines(self, n):
+
+        topOut = False
+        for i in range(n):
+            topOut = self.__moveAllLinesUp()
+
+            if topOut:
+                break
+
+            self.grid[self.rows - 1].fill(self.garbageValue)
+            # Make cheese
+            self.grid[self.rows - 1][self.garbageRandom.integers(0, self.cols)] = 0
+
+        if not topOut:
+            if self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos - np.array([[0, -n]])):
+                self.currentTetromino.translate(np.array([[0, -n]]))
+            else:
+                topOut = True
+
+        return topOut
+
+    def __moveAllLinesUp(self):
+
+        topOut = not (self.grid[0] == 0).all()
+        
+        for i in range(0, self.rows - 1):
+            
+            self.grid[i] = np.copy(self.grid[i + 1])
+
+        return topOut
 
     def __clearLines(self, clear = True):
 
@@ -725,8 +817,6 @@ class Tetris:
             tmp = np.copy(self.grid[i])
             self.grid[i] = prevRow
             prevRow = tmp
-
-
 
     def __getSlicesFromGridOverlap(self):
         # Gets the overlapping slices between the grid and current tetromino matrix based on its position.

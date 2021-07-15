@@ -24,12 +24,27 @@ class InteractiveConfig():
         "4": Fore.LIGHTYELLOW_EX,
         "5": Fore.LIGHTGREEN_EX,
         "6": Fore.LIGHTMAGENTA_EX,
-        "7": Fore.LIGHTRED_EX
+        "7": Fore.LIGHTRED_EX,
+        "#": Fore.RED
     }
 
     ghostPieceStyle = Style.BRIGHT + Fore.WHITE
     ghostCharacter = "@"
     actionHighlightStyle = Fore.LIGHTRED_EX
+
+    promptTable = {
+        ScoreTypes.Single: "Single",
+        ScoreTypes.Double: "Double",
+        ScoreTypes.Triple: "Triple",
+        ScoreTypes.Tetris: "Tetris!",
+        ScoreTypes.MiniTSpin: "T-Spin Mini",
+        ScoreTypes.TSpin: "T-Spin",
+        ScoreTypes.MiniTSpinSingle: "T-Spin Mini x1",
+        ScoreTypes.MiniTSpinDouble: "T-Spin Mini x2",
+        ScoreTypes.TSpinSingle: "T-Spin x1",
+        ScoreTypes.TSpinDouble: "T-Spin x2",
+        ScoreTypes.TSpinTriple: "T-Spin x3"
+    }
 
 class HandlingConfig():
 
@@ -45,7 +60,7 @@ class GameConfig():
     G = 20      #  Ticks per drop.
     lockDelay = 10
 
-    garbageDelay = frameRate * 3    # No of frames.
+    garbageDelay = 120 #frameRate * 3    # No of frames.
 
     I_kicks = {
             "01": np.array([[0,0], [-2,0], [1, 0], [-2, 1], [ 1,-2]]),

@@ -7,18 +7,21 @@ import sys
 from colorama import init, Fore, Style
 from pynput import keyboard
 import cursor
-from config import InteractiveConfig
+from config import GameConfig, InteractiveConfig
 init()
 
 class Interactive:
 
-    def __init__(self):
+    def __init__(self, gameConfig = GameConfig, interactiveConfig = InteractiveConfig):
         init()
-        self.tet= Tetris()
+        self.gameConfig = gameConfig
+        self.interactiveConfig = interactiveConfig
+
+        self.tet= Tetris(gameConfig=self.gameConfig)
 
         self.ac = getEmptyActionObj()
 
-        self.keybindings = InteractiveConfig.keybindings
+        self.keybindings = self.interactiveConfig.keybindings
 
         self.keyInfo = {
             self.keybindings[Action.Left]:          {"prev": False, "cur": False},
@@ -38,21 +41,39 @@ class Interactive:
     def __colourActiveInputs(self, string):
         for k in KeyIcons.entries:
             if self.ac[k]:
-                string = string.replace(f"\t{KeyIcons.entries[k]}", f"\t{InteractiveConfig.actionHighlightStyle}{KeyIcons.entries[k]}{Style.RESET_ALL}")
+                string = string.replace(f"\t{KeyIcons.entries[k]}", f"\t{self.interactiveConfig.actionHighlightStyle}{KeyIcons.entries[k]}{Style.RESET_ALL}")
 
         return string
 
     def __formatString(self, string):
 
-        for k in InteractiveConfig.pieceStyles:
-            replaceString = InteractiveConfig.pieceStyles[k] + k + Style.RESET_ALL
+        for k in self.interactiveConfig.pieceStyles:
+            replaceString = self.interactiveConfig.pieceStyles[k] + k + Style.RESET_ALL
             string = string.replace(k, replaceString)
 
-        string = string.replace(InteractiveConfig.ghostCharacter, f"{InteractiveConfig.ghostPieceStyle}{InteractiveConfig.ghostCharacter}{Style.RESET_ALL}")
+        string = string.replace(self.interactiveConfig.ghostCharacter, f"{self.interactiveConfig.ghostPieceStyle}{self.interactiveConfig.ghostCharacter}{Style.RESET_ALL}")
 
         string = self.__colourActiveInputs(string)
 
         return string
+
+    def __formatDropPrompt(self, key, scoreString):
+        
+        if key == None:
+            return "\n" + " "*len(scoreString)
+
+        try:
+            prompt = self.interactiveConfig.promptTable[key]
+
+        except KeyError:
+            return ""
+
+        prompt += f" ({self.gameConfig.scoreTable[key]})"
+        
+        line = " "*int(len(scoreString) // 2 - len(prompt) // 2) + prompt
+        line += " "*(len(scoreString) - len(line))
+
+        return "\n" + line
 
     def __isActionToggled(self, action):
         return self.keyInfo[self.keybindings[action]]["cur"] and not self.keyInfo[self.keybindings[action]]["prev"]
@@ -89,7 +110,7 @@ class Interactive:
 
         for k in self.keyInfo:
             self.keyInfo[k]["prev"] = self.keyInfo[k]["cur"]
-      
+
     def __loop(self):
 
         self.__getActionFromInputs()
@@ -98,10 +119,12 @@ class Interactive:
         goNext = self.tet.nextState(self.ac)
 
         if goNext == False:
-            self.__init__()
+            #self.__init__()
             return
+
+        mainStr, scoreStr, actionType = self.tet.toString(GHOSTCHARACTER=self.interactiveConfig.ghostCharacter)
         
-        display = self.__formatString(self.tet.toString(GHOSTCHARACTER=InteractiveConfig.ghostCharacter))
+        display = self.__formatString(mainStr) + "\n" + scoreStr + self.__formatDropPrompt(actionType, scoreStr)
 
         count = display.count('\n')
         print(display, end=f"\x1b[{count}A")    # print is current performance bottleneck. Limits framerate to effectively 10fps. Perhaps consider only re printing the characters which change?
@@ -169,7 +192,7 @@ class Interactive:
         self.inputListener = keyboard.Listener(on_press = self.__on_press, on_release=self.__on_release)
         self.inputListener.start()
 
-        self.exitListener = keyboard.GlobalHotKeys({'<ctrl>+<shift>': self.stopThreads})
+        self.exitListener = keyboard.GlobalHotKeys({'<ctrl>+<shift>': self.stopThreads, '<shift>+<tab>': cursor.hide_cursor})
         self.exitListener.start()
 
 if __name__ == "__main__":
