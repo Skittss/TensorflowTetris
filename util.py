@@ -37,3 +37,7 @@ class ScoreTypes(Enum):
     TSpinSingle = 10
     TSpinDouble = 11
     TSpinTriple = 12
+    SinglePC = 13
+    DoublePC = 14
+    TriplePC = 15
+    TetrisPC = 16

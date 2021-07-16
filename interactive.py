@@ -8,7 +8,6 @@ from colorama import init, Fore, Style
 from pynput import keyboard
 import cursor
 from config import GameConfig, InteractiveConfig
-init()
 
 class Interactive:
 
@@ -41,7 +40,9 @@ class Interactive:
     def __colourActiveInputs(self, string):
         for k in KeyIcons.entries:
             if self.ac[k]:
-                string = string.replace(f"\t{KeyIcons.entries[k]}", f"\t{self.interactiveConfig.actionHighlightStyle}{KeyIcons.entries[k]}{Style.RESET_ALL}")
+                string = string.replace(f"\"{KeyIcons.entries[k]}\"", f"{self.interactiveConfig.actionHighlightStyle}{KeyIcons.entries[k]}{Style.RESET_ALL}")
+            else:
+                string = string.replace(f"\"{KeyIcons.entries[k]}\"", f"{KeyIcons.entries[k]}")
 
         return string
 
@@ -52,8 +53,6 @@ class Interactive:
             string = string.replace(k, replaceString)
 
         string = string.replace(self.interactiveConfig.ghostCharacter, f"{self.interactiveConfig.ghostPieceStyle}{self.interactiveConfig.ghostCharacter}{Style.RESET_ALL}")
-
-        string = self.__colourActiveInputs(string)
 
         return string
 
@@ -66,7 +65,7 @@ class Interactive:
             prompt = self.interactiveConfig.promptTable[key]
 
         except KeyError:
-            return ""
+            return "\n"
 
         prompt += f" ({self.gameConfig.scoreTable[key]})"
         
@@ -88,7 +87,7 @@ class Interactive:
         else:
             self.ac[action] = False
 
-    def __getActionFromInputs(self):
+    def getActionFromInputs(self):
 
         self.__doActionCheck(Action.Left, self.__isActionDown) 
 
@@ -113,7 +112,7 @@ class Interactive:
 
     def __loop(self):
 
-        self.__getActionFromInputs()
+        self.getActionFromInputs()
         self.__forwardAllKeyStates()
 
         goNext = self.tet.nextState(self.ac)
@@ -122,9 +121,10 @@ class Interactive:
             #self.__init__()
             return
 
-        mainStr, scoreStr, actionType = self.tet.toString(GHOSTCHARACTER=self.interactiveConfig.ghostCharacter)
+        mainStr, scoreStr, actionType, actionStr, _ = self.tet.toString(GHOSTCHARACTER=self.interactiveConfig.ghostCharacter)
+        actionStr = self.__colourActiveInputs(actionStr)
         
-        display = self.__formatString(mainStr) + "\n" + scoreStr + self.__formatDropPrompt(actionType, scoreStr)
+        display = self.__formatString(mainStr) + "\n" + scoreStr + self.__formatDropPrompt(actionType, scoreStr) + "\n\n" + actionStr
 
         count = display.count('\n')
         print(display, end=f"\x1b[{count}A")    # print is current performance bottleneck. Limits framerate to effectively 10fps. Perhaps consider only re printing the characters which change?

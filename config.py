@@ -43,7 +43,11 @@ class InteractiveConfig():
         ScoreTypes.MiniTSpinDouble: "T-Spin Mini x2",
         ScoreTypes.TSpinSingle: "T-Spin x1",
         ScoreTypes.TSpinDouble: "T-Spin x2",
-        ScoreTypes.TSpinTriple: "T-Spin x3"
+        ScoreTypes.TSpinTriple: "T-Spin x3",
+        ScoreTypes.SinglePC: "Perfect Clear! x1",
+        ScoreTypes.DoublePC: "Perfect Clear! x2",
+        ScoreTypes.TriplePC: "Perfect Clear! x3",
+        ScoreTypes.TetrisPC: "Perfect Clear! x4"
     }
 
 class HandlingConfig():
@@ -60,7 +64,8 @@ class GameConfig():
     G = 20      #  Ticks per drop.
     lockDelay = 10
 
-    garbageDelay = 120 #frameRate * 3    # No of frames.
+    garbageInitialDelay = 60 #frameRate * 3    # No of frames.
+    garbageRepeatDelay = 20
 
     I_kicks = {
             "01": np.array([[0,0], [-2,0], [1, 0], [-2, 1], [ 1,-2]]),
@@ -109,5 +114,9 @@ class GameConfig():
         ScoreTypes.MiniTSpinDouble: 400,
         ScoreTypes.TSpinSingle: 800,
         ScoreTypes.TSpinDouble: 1200,
-        ScoreTypes.TSpinTriple: 1600
+        ScoreTypes.TSpinTriple: 1600,
+        ScoreTypes.SinglePC: 800,
+        ScoreTypes.DoublePC: 1200,
+        ScoreTypes.TriplePC: 1800,
+        ScoreTypes.TetrisPC: 2000
     }
