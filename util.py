@@ -1,5 +1,16 @@
 from enum import Enum
 
+# Why does pygame not do per-surface blending???
+def lerpBlendRGBA(base, overlay, alpha):
+
+    r1, g1, b1 = base
+    r2, g2, b2 = overlay
+
+    blend = lambda b, o: alpha * o + (1 - alpha) * b
+
+    return (blend(r1, r2), blend(g1, g2), blend(b1, b2))
+
+
 class Action(Enum):
     Left = 0
     Right = 1
@@ -9,6 +20,18 @@ class Action(Enum):
     RotateRight = 5
     Rotate180 = 6
     Hold = 7
+
+def getEmptyActionObj():
+    return {
+        Action.Left: False,
+        Action.Right: False,
+        Action.SoftDrop: False,
+        Action.HardDrop: False,
+        Action.RotateLeft: False,
+        Action.RotateRight: False,
+        Action.Rotate180: False,
+        Action.Hold: False
+    }
 
 class KeyIcons:
 
@@ -41,3 +64,12 @@ class ScoreTypes(Enum):
     DoublePC = 14
     TriplePC = 15
     TetrisPC = 16
+
+class Tetrominos(Enum):
+    I = 0
+    J = 1
+    L = 2
+    O = 3
+    S = 4
+    T = 5
+    Z = 6

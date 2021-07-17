@@ -1,9 +1,8 @@
 import numpy as np
 import math
-from util import Action, KeyIcons, ScoreTypes
-from enum import Enum
+from util import Action, KeyIcons, ScoreTypes, Tetrominos
 from collections import deque
-from config import GameConfig, HandlingConfig
+from game_config import GameConfig, HandlingConfig
 
 # TODO      
 #           ---Modify piece spawn positions to be correctly centered.
@@ -24,28 +23,7 @@ from config import GameConfig, HandlingConfig
 #           Sometimes kick not working on right wall - fix.
 #           ---Fix top out when piece falls as garbage rises, I think the piece can't push to the garbage?
 #           Sometimes garbage disappears Needs fix. Appears to be when piece close to locking / combo based garbage
-
-
-def getEmptyActionObj():
-    return {
-        Action.Left: False,
-        Action.Right: False,
-        Action.SoftDrop: False,
-        Action.HardDrop: False,
-        Action.RotateLeft: False,
-        Action.RotateRight: False,
-        Action.Rotate180: False,
-        Action.Hold: False
-    }
-
-class Tetrominos(Enum):
-    I = 0
-    J = 1
-    L = 2
-    O = 3
-    S = 4
-    T = 5
-    Z = 6
+#           -ve indexing causes by topout. immediately harddrop all pieces to replicate.
 
 class Tetris:
 
@@ -132,28 +110,65 @@ class Tetris:
 
         def __init__(self, TIMER, COMBOFUNC):
 
-            self.combo = 0
+            self.__comboPieces = 0
             self.__table = COMBOFUNC
             self.__timer = TIMER
             self.__tick = 0
+
+        def getCombo(self):
+            return max(0, self.__comboPieces - 1)
 
         def tick(self):
             if self.__tick > 0:
                 self.__tick -= 1
             
             if self.__tick == 0:
-                self.combo = 0
+                self.__comboPieces = 0
 
         def add(self, dropClass):
 
             if not (dropClass == ScoreTypes.Drop or dropClass == ScoreTypes.HardDrop):
 
-                self.combo += 1
+                self.__comboPieces += 1
                 self.__tick = self.__timer
 
-                return self.__table(self.combo)
+                return self.__table(self.getCombo())
                 
             return 0
+
+    class DisplayData:
+
+        def __init__(self,
+            grid=None,
+            hiddenRows=None,
+
+            ghostPos=None,
+
+            pendingGarbage=None,
+            garbageValue=None,
+
+            score=None,
+            lost=None,
+
+            bag=None,
+            currentTetrominoMatrix=None,
+            heldTetromino=None,
+
+            combo=None,
+            lastDropType=None,
+        ):
+            self.grid = grid
+            self.hiddenRows = hiddenRows
+            self.ghostPos = ghostPos
+            self.pendingGarbage = pendingGarbage
+            self.garbageValue = garbageValue
+            self.score = score
+            self.lost = lost
+            self.bag = bag
+            self.currentTetrominoMatrix = currentTetrominoMatrix
+            self.heldTetromino = heldTetromino
+            self.combo = combo
+            self.lastDropType = lastDropType
             
     def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, garbageSeed = 933,
                     handlingConfig = HandlingConfig,
@@ -181,7 +196,7 @@ class Tetris:
         self.__lockTick = 0
 
         # Combos
-        self.comboObj = self.Combo(gameConfig.comboTimer, gameConfig.comboTable)
+        self.comboCounter = self.Combo(gameConfig.comboTimer, gameConfig.comboTable)
 
         # DAS, ARR, SDF
         self.DAS = handlingConfig.DAS
@@ -222,157 +237,22 @@ class Tetris:
 
         #self.receiveGarbage(20)
 
-    def display(self):
-        print(self.grid)
+    def getDisplayData(self):
 
-    # def matchesTetrominoPart(self, c):
-    #     try:
-    #         v = int(c)
-    #         return v >= 0
-
-    #     except:
-    #         return False
-
-    # def __indexOfMatch(self, string, cmp, start = 0):
-    #     for i, chr in enumerate(string[start:]):
-    #         if cmp(chr):
-    #             return i + start
-        
-    #     return -1
-
-    # def __findNth(self, string, cmp, n):
-    #     idx = 0
-    #     for i in range(0, n):
-    #         next = self.__indexOfMatch(string, cmp, start = idx)
-
-    #         if next < 0:
-    #             return -1
-
-    #         idx = next + 1
-
-    #     return idx - 1
-
-    def __gridToStringList(self, garbageCharacter):
-
-        return [[str(int(v)) if not v == self.garbageValue else garbageCharacter for v in row] for row in self.grid[self.hiddenRows:]]
-
-    ## Consider moving this to another file after making another function which gives the necessary information to produce this output.
-    def toString(self, MINPAD = 5, EXTRAPAD = 10, UIVERTICALPAD = 1, PIECEPAD = 1, ACTIONVERTPAD = 4, COMBOROW = 7, SHOWGHOST = True, GHOSTCHARACTER = "@", GARBAGECHARACTER = "#", DEBUG = False):
-
-        # Get rid of all the garbage from numpy str. Perhaps consider implementing a faster version of this.
-        string = self.__gridToStringList(GARBAGECHARACTER)
-
-        # Add ghost piece:
-
-        if SHOWGHOST and not self.__lost:
-            ghostPos = self.__findCurrentHarddropPosition() - np.array([[0, self.hiddenRows]])
-
-            for i in range(0, len(self.currentTetromino.matrix)):
-                matrixRow = self.currentTetromino.matrix[i]
-                try:
-                    row = string[ghostPos[0, 1] + i]
-
-                    for (j,), v in np.ndenumerate(matrixRow):
-                        if not v == 0 and row[ghostPos[0, 0] + j] == "0":
-                            row[ghostPos[0, 0] + j] = GHOSTCHARACTER
-
-                except IndexError:
-                    pass
-                    
-        string = [f"█{' '.join(s)}▌" for s in string] 
-        string = ["▄"*len(string[0])] + string + ["▀"*len(string[0])]
-
-        # Add garbage indicator
-
-        garbageCount = self.garbage.pending()
-        garbageStr = ["▄"] + [GARBAGECHARACTER if row < garbageCount else " " for row in range(self.hiddenRows)][::-1] + ["▀"]
-        rightBoundary = ["▄"] + ["▐" for i in range(self.hiddenRows)] + ["▀"]
-
-        string = [row + garbageStr[i] + rightBoundary[i] for i, row in enumerate(string)]
-
-        # Pad the grid, add Hold and Preview.
-
-        N = MINPAD + EXTRAPAD # total characters
-
-        padding = " "*N
-        for i, line in enumerate(string):
-            string[i] = padding + line + padding
-
-        if len(string) < 8:
-            for i in range (0, 8 - len(string)):
-                string.append("\n")
-
-        holdText = "Hold:"
-        bagText = "Next:"
-        string[UIVERTICALPAD] = string[UIVERTICALPAD][:N-len(holdText) - MINPAD] + holdText + string[UIVERTICALPAD][N - MINPAD:len(string[UIVERTICALPAD]) - N + MINPAD] + bagText + string[UIVERTICALPAD][len(string[UIVERTICALPAD]) - N + len(bagText) + MINPAD : len(string[UIVERTICALPAD])]
-
-        if self.heldTetromino:
-
-            # Can move this to function (albeit with quite a few params) for re-use below
-            holdPieceMatrix = self.heldTetromino.matrix
-            uiRow = UIVERTICALPAD + 1 + PIECEPAD
-            for y in range(holdPieceMatrix.shape[1]):
-                matrixRowStr = str(holdPieceMatrix[y])[1:-1].replace("0", " ")
-
-                string[uiRow + y] = string[uiRow + y][:N-len(matrixRowStr) - MINPAD] + matrixRowStr + string[uiRow + y][N - MINPAD:]
-
-        if self.comboObj.combo > 0:
-            if self.comboObj.combo > 99: 
-                comboStr = f" Combo! (x99+)"
-            else:
-                comboStr = f" Combo! (x{self.comboObj.combo})"
-                
-            string[COMBOROW] = comboStr + string[COMBOROW][len(comboStr):]
-
-
-        uiRow = UIVERTICALPAD + 1 + PIECEPAD
-        
-        for i in range(0, 5):
-            
-            piece = self.bag[i]
-            pieceMatrix = piece.matrix
-            pieceRows = pieceMatrix.shape[1]
-            rowsSkipped = 0
-            
-            if uiRow + pieceRows > self.grid.shape[0]:
-                break
-
-            for y in range(pieceRows):
-                if np.all(pieceMatrix[y] == 0):
-                    rowsSkipped += 1
-                else:
-                    matrixRowStr = str(pieceMatrix[y])[1:-1].replace("0", " ")
-                    drawRow = uiRow + y - rowsSkipped
-
-                    string[drawRow] = string[drawRow][:len(string[drawRow]) - N + MINPAD] + matrixRowStr + string[drawRow][len(string[drawRow]) - N + len(matrixRowStr) + MINPAD : len(string[drawRow])]
-
-            uiRow += pieceRows + PIECEPAD - rowsSkipped
-
-        # Add current actions:
-
-        actionStr = [
-            f"\t\"{KeyIcons.entries[Action.RotateLeft]}\"\t\"{KeyIcons.entries[Action.RotateRight]}\"\t\"{KeyIcons.entries[Action.Rotate180]}\"\t\"{KeyIcons.entries[Action.Hold]}\"\t\"{KeyIcons.entries[Action.Left]}\"\t\t\"{KeyIcons.entries[Action.Right]}\"",
-            f"\t\t\t\t\t\t\"{KeyIcons.entries[Action.SoftDrop]}\"\t",
-            f"\t\t\t\t\"{KeyIcons.entries[Action.HardDrop]}\"\t\t\t"
-        ]
-
-        actionStr = "\n".join(actionStr)
-
-        # Create a separate score string
-        scoreToString = f"{self.score}pts"
-        scorePadLength = max(0, int(len(string[-1]) // 2 - len(scoreToString) // 2))
-        scoreString = " "*scorePadLength + scoreToString
-        scoreString = scoreString + " "*(len(string[-1]) - len(scoreString))
-
-        #DEBUG
-
-        if DEBUG:
-            debugStr = f"\n\nFrame: {self.__frame}ff \tTick: {self.__tick}fff\tDAS Charge: {self.DAScharge}fff\tARR Frame tick: {self.ARRframeTick}fff\tLock tick: {self.__lockTick}fff\nDrop Hover: {ghostPos}ffffff\tPiece Pos: {self.currentTetromino.pos}ffffff\tLast move was rotate: {self.currentTetromino.lastMoveWasRotate}fffff\nScore: {self.score}fffff"
-        else:
-            debugStr = ""
-
-        # @Return Main grid string, score string, previous drop type for prompts.
-        return "\n" + "\n".join(string), scoreString, self.__lastDropClass, actionStr, debugStr
+        return self.DisplayData(
+            grid=self.grid,
+            hiddenRows=self.hiddenRows,
+            ghostPos = self.__findCurrentHarddropPosition() - np.array([[0, self.hiddenRows]]),
+            pendingGarbage = self.garbage.pending(),
+            garbageValue= self.garbageValue,
+            score = self.score,
+            lost = self.__lost,
+            bag = self.bag,
+            currentTetrominoMatrix = self.currentTetromino.matrix,
+            heldTetromino = self.heldTetromino,
+            combo = self.comboCounter.getCombo(),
+            lastDropType = self.__lastDropClass
+        )
 
     def nextState(self, actions, garbageTarget=None):
 
@@ -385,7 +265,7 @@ class Tetris:
             # Perhaps needs to be moved to after action is done.
             linesToAdd = self.garbage.tick()
 
-            self.comboObj.tick()
+            self.comboCounter.tick()
 
             if linesToAdd > 0:
                 self.__lost = self.__addGarbageLines(linesToAdd)
@@ -416,7 +296,7 @@ class Tetris:
 
                     self.__clearLines()
 
-                    comboLines = self.comboObj.add(self.__lastDropClass)
+                    comboLines = self.comboCounter.add(self.__lastDropClass)
 
                     if garbageTarget:
                         
@@ -424,6 +304,7 @@ class Tetris:
                         self.sendGarbage(toSend, garbageTarget)
 
                     self.__lost = not self.__getNextTetromino()
+
             else:
                 self.__pushCurrentTetrominoToGrid()
 

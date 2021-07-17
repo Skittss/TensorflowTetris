@@ -1,8 +1,7 @@
 from interval import Interval
-from interactive import Interactive 
 import os
 import cursor
-from config import InteractiveConfig, HandlingConfig, GameConfig
+from game_config import HandlingConfig, GameConfig
 from pynput import keyboard
 
 class Multiplayer:
@@ -67,5 +66,5 @@ class Multiplayer:
 
 if __name__ == "__main__":
 
-    g = Multiplayer(GameConfig, InteractiveConfig, InteractiveConfig, HandlingConfig, HandlingConfig)
+    g = Multiplayer(GameConfig, CmdInteractiveConfig, CmdInteractiveConfig, HandlingConfig, HandlingConfig)
     g.start()
