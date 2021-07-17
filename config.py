@@ -63,6 +63,7 @@ class GameConfig():
     frameRate = 120
     G = 20      #  Ticks per drop.
     lockDelay = 10
+    comboTimer = 60
 
     garbageInitialDelay = 60 #frameRate * 3    # No of frames.
     garbageRepeatDelay = 20
@@ -120,3 +121,25 @@ class GameConfig():
         ScoreTypes.TriplePC: 1800,
         ScoreTypes.TetrisPC: 2000
     }
+
+    attackTable = {
+        ScoreTypes.Drop: 0,
+        ScoreTypes.HardDrop: 0,
+        ScoreTypes.Single: 0,
+        ScoreTypes.Double: 1,
+        ScoreTypes.Triple: 2,
+        ScoreTypes.Tetris: 4,
+        ScoreTypes.MiniTSpin: 0,
+        ScoreTypes.TSpin: 0,
+        ScoreTypes.MiniTSpinSingle: 1,
+        ScoreTypes.MiniTSpinDouble: 2,
+        ScoreTypes.TSpinSingle: 2,
+        ScoreTypes.TSpinDouble: 4,
+        ScoreTypes.TSpinTriple: 6,
+        ScoreTypes.SinglePC: 10,
+        ScoreTypes.DoublePC: 10,
+        ScoreTypes.TriplePC: 10,
+        ScoreTypes.TetrisPC: 10
+    }
+
+    comboTable = lambda x: 1 if x > 2 else 0

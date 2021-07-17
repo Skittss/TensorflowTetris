@@ -7,16 +7,18 @@ import sys
 from colorama import init, Fore, Style
 from pynput import keyboard
 import cursor
-from config import GameConfig, InteractiveConfig
+from config import GameConfig, HandlingConfig, InteractiveConfig
 
 class Interactive:
 
-    def __init__(self, gameConfig = GameConfig, interactiveConfig = InteractiveConfig):
+    def __init__(self, gameConfig = GameConfig, interactiveConfig = InteractiveConfig, handlingConfig = HandlingConfig):
         init()
         self.gameConfig = gameConfig
         self.interactiveConfig = interactiveConfig
+        self.handlingConfig = handlingConfig
 
-        self.tet= Tetris(gameConfig=self.gameConfig)
+        self.tet= Tetris(gameConfig=self.gameConfig, handlingConfig=handlingConfig)
+        self.garbageFunc = self.tet.receiveGarbage
 
         self.ac = getEmptyActionObj()
 
@@ -110,24 +112,31 @@ class Interactive:
         for k in self.keyInfo:
             self.keyInfo[k]["prev"] = self.keyInfo[k]["cur"]
 
-    def __loop(self):
-
-        self.getActionFromInputs()
-        self.__forwardAllKeyStates()
-
-        goNext = self.tet.nextState(self.ac)
-
-        if goNext == False:
-            #self.__init__()
-            return
-
+    def toString(self):
         mainStr, scoreStr, actionType, actionStr, _ = self.tet.toString(GHOSTCHARACTER=self.interactiveConfig.ghostCharacter)
         actionStr = self.__colourActiveInputs(actionStr)
         
         display = self.__formatString(mainStr) + "\n" + scoreStr + self.__formatDropPrompt(actionType, scoreStr) + "\n\n" + actionStr
 
-        count = display.count('\n')
-        print(display, end=f"\x1b[{count}A")    # print is current performance bottleneck. Limits framerate to effectively 10fps. Perhaps consider only re printing the characters which change?
+        return display
+
+    def loop(self, garbageTarget=None, output=True):
+
+        self.getActionFromInputs()
+        self.__forwardAllKeyStates()
+
+        goNext = self.tet.nextState(self.ac, garbageTarget=garbageTarget)
+
+        if goNext == False:
+            #self.__init__()
+            return
+
+        if output:
+
+            display = self.toString()
+
+            count = display.count('\n')
+            print(display, end=f"\x1b[{count}A")    # print is current performance bottleneck. Limits framerate to effectively 10fps. Perhaps consider only re printing the characters which change?
 
     def __getKeyInfoDictKey(self, key):
 
@@ -186,14 +195,22 @@ class Interactive:
         cursor.hide_cursor()
 
         if not self.timer:
-            self.timer = Interval(1/120, self.__loop)
+            self.timer = Interval(1/120, self.loop)
             self.timer.start()
-            
-        self.inputListener = keyboard.Listener(on_press = self.__on_press, on_release=self.__on_release)
-        self.inputListener.start()
+        
+        self.initialize()
 
-        self.exitListener = keyboard.GlobalHotKeys({'<ctrl>+<shift>': self.stopThreads, '<shift>+<tab>': cursor.hide_cursor})
-        self.exitListener.start()
+    def initialize(self, listenForInputs=True, listenForShortcuts=True):
+
+        if listenForInputs:
+
+            self.inputListener = keyboard.Listener(on_press = self.__on_press, on_release=self.__on_release)
+            self.inputListener.start()
+
+        if listenForShortcuts:
+
+            self.exitListener = keyboard.GlobalHotKeys({'<ctrl>+<shift>': self.stopThreads, '<shift>+<tab>': cursor.hide_cursor})
+            self.exitListener.start()
 
 if __name__ == "__main__":
     game = Interactive()

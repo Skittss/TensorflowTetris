@@ -22,8 +22,8 @@ from config import GameConfig, HandlingConfig
 #           ---Garbage meter with red # added to __str__
 #           ---Ghost piece added to __str__
 #           Sometimes kick not working on right wall - fix.
-#           Case where more garbage than rows - might not be needed?
 #           ---Fix top out when piece falls as garbage rises, I think the piece can't push to the garbage?
+#           Sometimes garbage disappears Needs fix. Appears to be when piece close to locking / combo based garbage
 
 
 def getEmptyActionObj():
@@ -102,6 +102,8 @@ class Tetris:
             for i in range(0, n):
                 self.garbage.append(self.delay + (i * self.repeatDelay))
 
+            self.garbage.sort(reverse=True)
+
         def tick(self):
             count = 0
             for g in range(0, len(self.garbage)):
@@ -115,6 +117,43 @@ class Tetris:
 
         def pending(self):
             return len(self.garbage)
+
+        def counter(self, n):
+            remaining = len(self.garbage) - n
+            if remaining <= 0:
+                self.garbage = []
+            else:
+                self.garbage = self.garbage[remaining - 1:]
+
+            # @Returns number of lines to be sent after countering.
+            return max(0, n - len(self.garbage))
+
+    class Combo:
+
+        def __init__(self, TIMER, COMBOFUNC):
+
+            self.combo = 0
+            self.__table = COMBOFUNC
+            self.__timer = TIMER
+            self.__tick = 0
+
+        def tick(self):
+            if self.__tick > 0:
+                self.__tick -= 1
+            
+            if self.__tick == 0:
+                self.combo = 0
+
+        def add(self, dropClass):
+
+            if not (dropClass == ScoreTypes.Drop or dropClass == ScoreTypes.HardDrop):
+
+                self.combo += 1
+                self.__tick = self.__timer
+
+                return self.__table(self.combo)
+                
+            return 0
             
     def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, garbageSeed = 933,
                     handlingConfig = HandlingConfig,
@@ -140,6 +179,9 @@ class Tetris:
         self.__frameRate = gameConfig.frameRate
         self.__lockDelay = gameConfig.lockDelay
         self.__lockTick = 0
+
+        # Combos
+        self.comboObj = self.Combo(gameConfig.comboTimer, gameConfig.comboTable)
 
         # DAS, ARR, SDF
         self.DAS = handlingConfig.DAS
@@ -167,6 +209,7 @@ class Tetris:
         self.garbageRandom = np.random.default_rng(seed = garbageSeed)
         self.garbageValue = 9
         self.garbage = self.GarbageList(gameConfig.garbageInitialDelay, gameConfig.garbageRepeatDelay)
+        self.attackTable = gameConfig.attackTable
 
         # Wall kick tests - Could reduce hashmaps by noting "xy" == -"yx", but keep things simple for now.
         self.__wallKickTestsI = gameConfig.I_kicks
@@ -177,7 +220,7 @@ class Tetris:
 
         self.__getNextTetromino()
 
-        self.sendGarbage(20)
+        #self.receiveGarbage(20)
 
     def display(self):
         print(self.grid)
@@ -214,7 +257,7 @@ class Tetris:
         return [[str(int(v)) if not v == self.garbageValue else garbageCharacter for v in row] for row in self.grid[self.hiddenRows:]]
 
     ## Consider moving this to another file after making another function which gives the necessary information to produce this output.
-    def toString(self, MINPAD = 5, EXTRAPAD = 10, UIVERTICALPAD = 1, PIECEPAD = 1, ACTIONVERTPAD = 4, SHOWGHOST = True, GHOSTCHARACTER = "@", GARBAGECHARACTER = "#", DEBUG = False):
+    def toString(self, MINPAD = 5, EXTRAPAD = 10, UIVERTICALPAD = 1, PIECEPAD = 1, ACTIONVERTPAD = 4, COMBOROW = 7, SHOWGHOST = True, GHOSTCHARACTER = "@", GARBAGECHARACTER = "#", DEBUG = False):
 
         # Get rid of all the garbage from numpy str. Perhaps consider implementing a faster version of this.
         string = self.__gridToStringList(GARBAGECHARACTER)
@@ -271,7 +314,15 @@ class Tetris:
             for y in range(holdPieceMatrix.shape[1]):
                 matrixRowStr = str(holdPieceMatrix[y])[1:-1].replace("0", " ")
 
-                string[uiRow + y] = string[uiRow + y][:N-len(matrixRowStr) - MINPAD] + matrixRowStr + string[uiRow + y][N - MINPAD:len(string[uiRow + y])]
+                string[uiRow + y] = string[uiRow + y][:N-len(matrixRowStr) - MINPAD] + matrixRowStr + string[uiRow + y][N - MINPAD:]
+
+        if self.comboObj.combo > 0:
+            if self.comboObj.combo > 99: 
+                comboStr = f" Combo! (x99+)"
+            else:
+                comboStr = f" Combo! (x{self.comboObj.combo})"
+                
+            string[COMBOROW] = comboStr + string[COMBOROW][len(comboStr):]
 
 
         uiRow = UIVERTICALPAD + 1 + PIECEPAD
@@ -300,9 +351,9 @@ class Tetris:
         # Add current actions:
 
         actionStr = [
-            f"\"{KeyIcons.entries[Action.RotateLeft]}\"\t\"{KeyIcons.entries[Action.RotateRight]}\"\t\"{KeyIcons.entries[Action.Rotate180]}\"\t\"{KeyIcons.entries[Action.Hold]}\"\t\"{KeyIcons.entries[Action.Left]}\"\t\t\"{KeyIcons.entries[Action.Right]}\"",
-            f"\t\t\t\t\t\"{KeyIcons.entries[Action.SoftDrop]}\"",
-            f"\t\t\t\"{KeyIcons.entries[Action.HardDrop]}\""
+            f"\t\"{KeyIcons.entries[Action.RotateLeft]}\"\t\"{KeyIcons.entries[Action.RotateRight]}\"\t\"{KeyIcons.entries[Action.Rotate180]}\"\t\"{KeyIcons.entries[Action.Hold]}\"\t\"{KeyIcons.entries[Action.Left]}\"\t\t\"{KeyIcons.entries[Action.Right]}\"",
+            f"\t\t\t\t\t\t\"{KeyIcons.entries[Action.SoftDrop]}\"\t",
+            f"\t\t\t\t\"{KeyIcons.entries[Action.HardDrop]}\"\t\t\t"
         ]
 
         actionStr = "\n".join(actionStr)
@@ -323,7 +374,7 @@ class Tetris:
         # @Return Main grid string, score string, previous drop type for prompts.
         return "\n" + "\n".join(string), scoreString, self.__lastDropClass, actionStr, debugStr
 
-    def nextState(self, actions):
+    def nextState(self, actions, garbageTarget=None):
 
         if not self.__lost:
 
@@ -331,7 +382,10 @@ class Tetris:
 
             self.__popCurrentTetrominoFromGrid()
 
+            # Perhaps needs to be moved to after action is done.
             linesToAdd = self.garbage.tick()
+
+            self.comboObj.tick()
 
             if linesToAdd > 0:
                 self.__lost = self.__addGarbageLines(linesToAdd)
@@ -362,6 +416,13 @@ class Tetris:
 
                     self.__clearLines()
 
+                    comboLines = self.comboObj.add(self.__lastDropClass)
+
+                    if garbageTarget:
+                        
+                        toSend = self.__getBaseLinesToSend(self.__lastDropClass) + comboLines
+                        self.sendGarbage(toSend, garbageTarget)
+
                     self.__lost = not self.__getNextTetromino()
             else:
                 self.__pushCurrentTetrominoToGrid()
@@ -371,8 +432,12 @@ class Tetris:
         else:
             return False
 
-    def sendGarbage(self, n):
+    def receiveGarbage(self, n):
         self.garbage.add(n)
+
+    def sendGarbage(self, n, receiveFunc):
+        toSend = self.garbage.counter(n)
+        receiveFunc(toSend)
 
     def __withinGrid(self, pos):
         return 0 < pos[0, 0] < self.cols and 0 < pos[0, 1] < self.rows
@@ -439,6 +504,9 @@ class Tetris:
 
     def __isPC(self):
         return not self.grid.any()
+
+    def __getBaseLinesToSend(self, dropClass):
+        return self.attackTable[dropClass]
 
     def __classifyDrop(self, linesCleared):
 
@@ -825,10 +893,7 @@ class Tetris:
             # elif closestShift > 0:
             #     self.currentTetromino.translate(np.array([[0, -n]]))
 
-            test = self.currentTetromino.pos - np.array([[0, n]])
             if self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos - np.array([[0, n]])):
-
-                test = self.__closestShiftUpwards(n)
 
                 if not self.__closestShiftUpwards(n) == 0:
                     self.currentTetromino.translate(np.array([[0, -n]]))
