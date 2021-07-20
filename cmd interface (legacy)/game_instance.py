@@ -1,5 +1,6 @@
 from tetris import Tetris
 from util import getEmptyActionObj
+from interval import Interval
 from time import time
 
 class GameInstance:
@@ -9,7 +10,7 @@ class GameInstance:
         self.gameConfig = gameConfig
         self.handlingConfig = handlingConfig
 
-        self.tet= Tetris(self.gameConfig, handlingConfig, seed=gameConfig.seed, garbageSeed=gameConfig.garbageSeed)
+        self.tet= Tetris(gameConfig=self.gameConfig, handlingConfig=handlingConfig, seed=gameConfig.seed, garbageSeed=gameConfig.garbageSeed)
         self.garbageFunc = self.tet.receiveGarbage
 
         self.ac = getEmptyActionObj()
@@ -48,5 +49,9 @@ class GameInstance:
 
         self.initialize()
 
+        if not self.timer:
+            self.timer = Interval(1/self.gameConfig.frameRate, self.loop)
+            self.timer.start()
+        
     def initialize(self):
         pass

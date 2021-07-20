@@ -1,23 +1,22 @@
-from util import ScoreTypes
+from util import ScoreTypes, msToFrames
 import numpy as np
 
-class HandlingConfig():
+class PygameGameConfig():
 
-    DAS = 1
-    ARR = 1
-    SDF = 60    # Ticks per frame while softdropping (normal drop = 1 tick/frame)
-
-class GameConfig():
+    seed = 11111
+    garbageSeed = seed
 
     useSevenBag = True
 
-    frameRate = 120
-    G = 20      #  Ticks per drop.
-    lockDelay = 10
-    comboTimer = 60
+    preview = 5
 
-    garbageInitialDelay = 60 # No. of frames.
-    garbageRepeatDelay = 20
+    frameRate = 60
+    G = msToFrames(frameRate, 1000)      #  Ticks per drop.
+    lockDelay = msToFrames(frameRate, 300)
+    comboTimer = msToFrames(frameRate, 4000)
+
+    garbageInitialDelay = msToFrames(frameRate, 2000) # No. of frames.
+    garbageRepeatDelay = msToFrames(frameRate, 1000)
 
     I_kicks = {
             "01": np.array([[0,0], [-2,0], [1, 0], [-2, 1], [ 1,-2]]),
@@ -94,3 +93,9 @@ class GameConfig():
     }
 
     comboTable = lambda x: 1 if x > 1 else 0
+
+class PygameHandlingConfig():
+
+    DAS = msToFrames(PygameGameConfig.frameRate, 100)
+    ARR = msToFrames(PygameGameConfig.frameRate, 20)
+    SDF = 120    # Ticks per frame while softdropping (normal drop = 1 tick/frame)

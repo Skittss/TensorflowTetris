@@ -2,6 +2,7 @@ import numpy as np
 import math
 from util import Action, KeyIcons, ScoreTypes, Tetrominos
 from collections import deque
+from game_config import GameConfig, HandlingConfig
 
 # TODO      
 #           ---Modify piece spawn positions to be correctly centered.
@@ -21,7 +22,9 @@ from collections import deque
 #           ---Ghost piece added to __str__
 #           Sometimes kick not working on right wall - fix.
 #           ---Fix top out when piece falls as garbage rises, I think the piece can't push to the garbage?
-#           --- -ve indexing causes by topout. immediately harddrop all pieces to replicate.
+#           Sometimes garbage disappears Needs fix. Appears to be when piece close to locking / combo based garbage. 
+#               Might be illusion due to piece falling + rising garbage at same time
+#           -ve indexing causes by topout. immediately harddrop all pieces to replicate.
 
 class Tetris:
 
@@ -170,13 +173,15 @@ class Tetris:
             self.combo = combo
             self.lastDropType = lastDropType
             
-    def __init__(self, gameConfig, handlingConfig, cols = 10, rows = 20, bagSize = 2, seed = 132, garbageSeed = 933):
-
+    def __init__(self, cols = 10, rows = 20, bagSize = 2, seed = 132, garbageSeed = 933,
+                    handlingConfig = HandlingConfig,
+                    gameConfig = GameConfig
+                ):
+        # toString specific
         self.__lastDropClass = None
 
         # Pts & Game over
         self.score = 0
-        self.scoreTable = gameConfig.scoreTable
         self.__lost = False
 
         # Grid information 
@@ -292,7 +297,7 @@ class Tetris:
 
                     self.__lastDropClass = self.__classifyDrop(linesCleared)
 
-                    self.score += self.scoreTable[self.__lastDropClass]
+                    self.score += GameConfig.scoreTable[self.__lastDropClass]
 
                     self.__clearLines()
 

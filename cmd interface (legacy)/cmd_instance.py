@@ -8,6 +8,11 @@ from game_config import GameConfig, HandlingConfig
 from cmd_interactive_config import CmdInteractiveConfig
 import numpy as np
 
+# TODO:
+#     Consider updating loop not on interval thread - seems to be inconsistent on timing.
+#       Might be better to do a time() comparison between last frame and current though unsure if
+#       print() delay would mean this is any better.
+
 class CmdInstance(GameInstance):
 
     def __init__(self, gameConfig = GameConfig, interactiveConfig = CmdInteractiveConfig, handlingConfig = HandlingConfig):

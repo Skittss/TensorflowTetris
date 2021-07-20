@@ -1,15 +1,17 @@
+from cmd_instance import CmdInstance
 from interval import Interval
 import os
 import cursor
 from game_config import HandlingConfig, GameConfig
+from cmd_interactive_config import CmdInteractiveConfig
 from pynput import keyboard
 
 class Multiplayer:
     
     def __init__(self, gameConfig, p1InteractiveConfig, p2InteractiveConfig, p1HandlingConfig, p2HandlingConfig):
 
-        self.p1 = Interactive(gameConfig, p1InteractiveConfig, p1HandlingConfig)
-        self.p2 = Interactive(gameConfig, p2InteractiveConfig, p2HandlingConfig)
+        self.p1 = CmdInstance(gameConfig, p1InteractiveConfig, p1HandlingConfig)
+        self.p2 = CmdInstance(gameConfig, p2InteractiveConfig, p2HandlingConfig)
 
         self.timer = None
         self.shortcutListener = None
