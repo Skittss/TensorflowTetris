@@ -1,71 +1,22 @@
-from util import Action, ScoreTypes
-from pynput import keyboard
-from colorama import Fore, Back, Style
+from util import ScoreTypes, msToFrames
 import numpy as np
 
-class InteractiveConfig():
+class PygameGameConfig():
 
-    keybindings = {
-        Action.Left:            keyboard.Key.left,
-        Action.Right:           keyboard.Key.right,
-        Action.SoftDrop:        keyboard.Key.down,
-        Action.HardDrop:        keyboard.Key.space,
-        Action.RotateLeft:      keyboard.Key.up,
-        Action.RotateRight:     'z',
-        Action.Rotate180:       'x',
-        Action.Hold:            'c'
-    }
-
-    pieceStyles = {
-        "0": Fore.BLACK,
-        "1": Fore.LIGHTCYAN_EX,
-        "2": Fore.LIGHTBLUE_EX,
-        "3": Style.BRIGHT + Fore.YELLOW,
-        "4": Fore.LIGHTYELLOW_EX,
-        "5": Fore.LIGHTGREEN_EX,
-        "6": Fore.LIGHTMAGENTA_EX,
-        "7": Fore.LIGHTRED_EX,
-        "#": Fore.RED
-    }
-
-    ghostPieceStyle = Style.BRIGHT + Fore.WHITE
-    ghostCharacter = "@"
-    actionHighlightStyle = Fore.LIGHTRED_EX
-
-    promptTable = {
-        ScoreTypes.Single: "Single",
-        ScoreTypes.Double: "Double",
-        ScoreTypes.Triple: "Triple",
-        ScoreTypes.Tetris: "Tetris!",
-        ScoreTypes.MiniTSpin: "T-Spin Mini",
-        ScoreTypes.TSpin: "T-Spin",
-        ScoreTypes.MiniTSpinSingle: "T-Spin Mini x1",
-        ScoreTypes.MiniTSpinDouble: "T-Spin Mini x2",
-        ScoreTypes.TSpinSingle: "T-Spin x1",
-        ScoreTypes.TSpinDouble: "T-Spin x2",
-        ScoreTypes.TSpinTriple: "T-Spin x3",
-        ScoreTypes.SinglePC: "Perfect Clear! x1",
-        ScoreTypes.DoublePC: "Perfect Clear! x2",
-        ScoreTypes.TriplePC: "Perfect Clear! x3",
-        ScoreTypes.TetrisPC: "Perfect Clear! x4"
-    }
-
-class HandlingConfig():
-
-    DAS = 1
-    ARR = 1
-    SDF = 60    # Ticks per frame while softdropping (normal drop = 1 tick/frame)
-
-class GameConfig():
+    seed = 11111
+    garbageSeed = seed
 
     useSevenBag = True
 
-    frameRate = 120
-    G = 20      #  Ticks per drop.
-    lockDelay = 10
+    preview = 5
 
-    garbageInitialDelay = 60 #frameRate * 3    # No of frames.
-    garbageRepeatDelay = 20
+    frameRate = 60
+    G = msToFrames(frameRate, 1000)      #  Ticks per drop.
+    lockDelay = msToFrames(frameRate, 300)
+    comboTimer = msToFrames(frameRate, 4000)
+
+    garbageInitialDelay = msToFrames(frameRate, 2000) # No. of frames.
+    garbageRepeatDelay = msToFrames(frameRate, 1000)
 
     I_kicks = {
             "01": np.array([[0,0], [-2,0], [1, 0], [-2, 1], [ 1,-2]]),
@@ -120,3 +71,31 @@ class GameConfig():
         ScoreTypes.TriplePC: 1800,
         ScoreTypes.TetrisPC: 2000
     }
+
+    attackTable = {
+        ScoreTypes.Drop: 0,
+        ScoreTypes.HardDrop: 0,
+        ScoreTypes.Single: 0,
+        ScoreTypes.Double: 1,
+        ScoreTypes.Triple: 2,
+        ScoreTypes.Tetris: 4,
+        ScoreTypes.MiniTSpin: 0,
+        ScoreTypes.TSpin: 0,
+        ScoreTypes.MiniTSpinSingle: 1,
+        ScoreTypes.MiniTSpinDouble: 2,
+        ScoreTypes.TSpinSingle: 2,
+        ScoreTypes.TSpinDouble: 4,
+        ScoreTypes.TSpinTriple: 6,
+        ScoreTypes.SinglePC: 10,
+        ScoreTypes.DoublePC: 10,
+        ScoreTypes.TriplePC: 10,
+        ScoreTypes.TetrisPC: 10
+    }
+
+    comboTable = lambda x: 1 if x > 1 else 0
+
+class PygameHandlingConfig():
+
+    DAS = msToFrames(PygameGameConfig.frameRate, 100)
+    ARR = msToFrames(PygameGameConfig.frameRate, 20)
+    SDF = 120    # Ticks per frame while softdropping (normal drop = 1 tick/frame)
