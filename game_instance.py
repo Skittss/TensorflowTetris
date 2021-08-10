@@ -32,7 +32,7 @@ class GameInstance:
             print(time() - self.lastTick)
             self.lastTick = time()
 
-        goNext = self.tet.nextState(self.ac, garbageTarget=garbageTarget)
+        goNext, _ = self.tet.nextState(self.ac, garbageTarget=garbageTarget)
 
         if goNext == False:
             #self.__init__()

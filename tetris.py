@@ -1,7 +1,8 @@
 import numpy as np
 import math
-from util import Action, KeyIcons, ScoreTypes, Tetrominos
+from util import Action, ScoreTypes, Tetrominos
 from collections import deque
+from secrets import randbelow
 
 # TODO      
 #           ---Modify piece spawn positions to be correctly centered.
@@ -69,14 +70,16 @@ class Tetris:
 
     class GarbageList:
 
-        def __init__(self, INITIAL_DELAY, REPEAT_DELAY):
+        def __init__(self, INITIAL_DELAY, REPEAT_DELAY, MAX_GARBAGE):
+            self.maxGarbage = MAX_GARBAGE
             self.garbage = []
             self.delay = INITIAL_DELAY
             self.repeatDelay = REPEAT_DELAY
 
         def add(self, n):
             for i in range(0, n):
-                self.garbage.append(self.delay + (i * self.repeatDelay))
+                if len(self.garbage < self.maxGarbage):
+                    self.garbage.append(self.delay + (i * self.repeatDelay))
 
             self.garbage.sort(reverse=True)
 
@@ -93,6 +96,22 @@ class Tetris:
 
         def pending(self):
             return len(self.garbage)
+        
+        def pendingNextTick(self):
+
+            if len(self.garbage) == 0:
+                return [0, 0]
+            
+            closestTick = 0
+            for i in range(1, len(self.garbage)):
+                if self.garbage[i] < self.garbage[closestTick]:
+                    closestTick = i
+
+                elif self.garbage[i] > self.garbage[closestTick]:
+                    break
+
+            # @Returns amt, tick
+            return [i, self.garbage[closestTick]]
 
         def counter(self, n):
             remaining = len(self.garbage) - n
@@ -115,6 +134,9 @@ class Tetris:
 
         def getCombo(self):
             return max(0, self.__comboPieces - 1)
+
+        def getNormTimeRemaining(self):
+            return self.__tick / self.__timer
 
         def tick(self):
             if self.__tick > 0:
@@ -170,9 +192,11 @@ class Tetris:
             self.combo = combo
             self.lastDropType = lastDropType
             
-    def __init__(self, gameConfig, handlingConfig, cols = 10, rows = 20, bagSize = 2, seed = 132, garbageSeed = 933):
+    def __init__(self, gameConfig, handlingConfig, cols = 10, rows = 20, bagSize = 2, seed = None, garbageSeed = None):
 
         self.__lastDropClass = None
+        self.currentReward = 0
+        self.pieceCount = 0
 
         # Pts & Game over
         self.score = 0
@@ -215,14 +239,19 @@ class Tetris:
         self.tetrominoStartPos = np.array([[math.floor(self.cols / 2), self.hiddenRows - 1]])
 
         # Bag
+        self.seed = seed if seed else randbelow(30000)
+
         self.bagRandom = np.random.default_rng(seed = seed)
         self.bag = self.__getBag(bagSize)
         self.preview = gameConfig.preview
 
         # Garbage
+
+        self.garbageSeed = garbageSeed if garbageSeed else randbelow(30000)
+
         self.garbageRandom = np.random.default_rng(seed = garbageSeed)
         self.garbageValue = 9
-        self.garbage = self.GarbageList(gameConfig.garbageInitialDelay, gameConfig.garbageRepeatDelay)
+        self.garbage = self.GarbageList(gameConfig.garbageInitialDelay, gameConfig.garbageRepeatDelay, self.rows * 2)
         self.attackTable = gameConfig.attackTable
 
         # Wall kick tests - Could reduce hashmaps by noting "xy" == -"yx", but keep things simple for now.
@@ -235,6 +264,49 @@ class Tetris:
         self.__getNextTetromino()
 
         #self.receiveGarbage(20)
+
+    def getState(self, SOLO_AGENT = True):
+        # Return a flattened array with information from:
+        #   binary board values (0=empty, 1=filled) including hidden rows. This assumes the agent has perfect memory.
+        #   piece previews - one hot encoding.      --->    Moved to agent to avoid importing TF here.
+        #   current piece position
+        #   current piece rotation
+        #   DAS charge tick - normalized to [-1, 1]
+        #   ARR tick - normalized to [0, 1]
+        #   Lock delay tick - normalized to [0, 1]
+        #   combo - binary, 0 for no combo, 1 for current combo as higher combos do not yield higher rewards.
+        #   combo timer - nomalized to [0, 1]
+        #   pending garbage                                     ----|
+        #   next pending garbage amount                             |--- Do not apply to Solo Agent.
+        #   next pending garbage timer                          ----|
+
+        grid = self.grid.flatten().tolist()
+        
+        extra =  self.currentTetromino.pos.flatten().tolist() + \
+            [self.currentTetromino.rotateState, self.__getNormDAScharge(), self.__getNormARRtick(), self.__getNormLockTick(), self.__hasOngoingCombo(), self.comboCounter.getNormTimeRemaining()]
+
+        if not SOLO_AGENT:
+            extra += [self.garbage.pending()] + self.garbage.pendingNextTick()
+
+        return grid, extra
+
+    def getBagPreview(self):
+        return [self.bag[i].tag for i in range(self.preview)]
+
+    def __hasOngoingCombo(self):
+        return 1 if self.comboCounter.getCombo() > 0 else 0
+
+    def __getNormDAScharge(self):
+        return self.DAScharge / self.DAS
+
+    def __getNormARRtick(self):
+        return self.ARRframeTick / self.ARR
+
+    def __getNormLockTick(self):
+        return self.__lockTick / self.__lockDelay
+
+    def getSeeds(self):
+        return self.seed, self.garbageSeed
 
     def getDisplayData(self):
 
@@ -257,6 +329,8 @@ class Tetris:
     def nextState(self, actions, garbageTarget=None):
 
         if not self.__lost:
+
+            self.currentReward = 0
 
             self.__doDASandARRreset(actions)
 
@@ -283,6 +357,8 @@ class Tetris:
 
                 if pieceDropped:
 
+                    self.pieceCount += 1
+
                     self.__lockTick = 0
 
                     self.heldLastPiece = False
@@ -292,7 +368,10 @@ class Tetris:
 
                     self.__lastDropClass = self.__classifyDrop(linesCleared)
 
-                    self.score += self.scoreTable[self.__lastDropClass]
+                    scoreIncrease = self.scoreTable[self.__lastDropClass]
+
+                    self.currentReward += scoreIncrease
+                    self.score += scoreIncrease
 
                     self.__clearLines()
 
@@ -305,13 +384,19 @@ class Tetris:
 
                     self.__lost = not self.__getNextTetromino()
 
+                self.__frame = (self.__frame + 1) % self.__frameRate
+
+                return True, (self.currentReward, self.pieceCount)
+
             else:
                 self.__pushCurrentTetrominoToGrid()
 
-            self.__frame = (self.__frame + 1) % self.__frameRate
+                self.__frame = (self.__frame + 1) % self.__frameRate
+
+                return False, (0, self.pieceCount)
 
         else:
-            return False
+            return False, (0, self.pieceCount)
 
     def receiveGarbage(self, n):
         self.garbage.add(n)
@@ -526,7 +611,7 @@ class Tetris:
         return self.DAScharge == 0 or (dir * self.DAScharge == self.DAS and (self.ARRframeTick == self.ARR - 1 or self.ARR == 0))
 
     def __doMove(self, translation):
-        canMove = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([translation]))
+        canMove = self.canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([translation]))
 
         if canMove:
             self.currentTetromino.translate(np.array([translation]))
@@ -585,7 +670,7 @@ class Tetris:
         nextRotateState, rotatedMatrix = self.currentTetromino.getRotatedMatrix(k)
 
         for i, testTranslation in enumerate(self.__getWallKickTests(nextRotateState)):
-            if self.__canPlaceOnGrid(rotatedMatrix, self.currentTetromino.pos + testTranslation):
+            if self.canPlaceOnGrid(rotatedMatrix, self.currentTetromino.pos + testTranslation):
 
                 if i == 4:
                     self.currentTetromino.wasKicked1x2 = True
@@ -609,7 +694,7 @@ class Tetris:
         
         return tests[str(self.currentTetromino.rotateState) + str(nextRotateState)]
 
-    def __canPlaceOnGrid(self, matrix, pos):
+    def canPlaceOnGrid(self, matrix, pos):
 
         for x in range(0, matrix.shape[0]):
             for y in range(0, matrix.shape[1]):
@@ -661,17 +746,6 @@ class Tetris:
 
             self.heldLastPiece = True
 
-    def __rotateBag(self):
-        nextTetromino = self.bag.popleft()
-
-        # 7 As one piece is popped beforehand
-        if len(self.bag) < 7:
-              newPieces = self.__getSevenBag() 
-              for tag in newPieces:
-                self.bag.append(self.Tetromino(self.tetrominoMatrices, self.tetrominoStartPos, tag))
-
-        return nextTetromino
-
     def __findCurrentHarddropPosition(self):
 
         self.__popCurrentTetrominoFromGrid()
@@ -680,7 +754,7 @@ class Tetris:
         canMoveDown = True
 
         while canMoveDown:
-            canMoveDown = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[0, downMoves]]))
+            canMoveDown = self.canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[0, downMoves]]))
 
             if canMoveDown:
                 downMoves += 1
@@ -691,7 +765,7 @@ class Tetris:
 
     def __attemptDownwardMoves(self, count):
         
-        canMoveDown = self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[0, 1]]))
+        canMoveDown = self.canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([[0, 1]]))
                 
         if canMoveDown:
             
@@ -748,7 +822,7 @@ class Tetris:
         for i in range(numToMoveBy + 1):
             translation = np.array([[0, -(numToMoveBy - i)]])
             
-            if self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos - translation):
+            if self.canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos - translation):
                 closest = numToMoveBy - i
             else:
                 break
@@ -778,7 +852,7 @@ class Tetris:
             # elif closestShift > 0:
             #     self.currentTetromino.translate(np.array([[0, -n]]))
 
-            if self.__canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos - np.array([[0, n]])):
+            if self.canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos - np.array([[0, n]])):
 
                 if not self.__closestShiftUpwards(n) == 0:
                     self.currentTetromino.translate(np.array([[0, -n]]))
@@ -860,6 +934,17 @@ class Tetris:
 
         return pieces
 
+    def __rotateBag(self):
+        nextTetromino = self.bag.popleft()
+
+        # 7 As one piece is popped beforehand
+        if len(self.bag) < 7:
+              newPieces = self.__getSevenBag() 
+              for tag in newPieces:
+                self.bag.append(self.Tetromino(self.tetrominoMatrices, self.tetrominoStartPos, tag))
+
+        return nextTetromino
+
     def __getTetrominoMatrices(self):
         return {
             # I
@@ -883,3 +968,17 @@ class Tetris:
             # Z
             6: np.array([[7,7,0],[0,7,7],[0,0,0]])
         }
+
+    def getPositionsOfDropTiles(self):
+
+        positions = []
+
+        for (y,x), v in np.ndenumerate(self.grid):
+            if v == 0:
+                if y + 1 < self.rows:
+                    if self.grid[y + 1, x] == 1:
+                        positions.append( (y,x) )
+                else: 
+                    positions.append( (y,x) )
+
+        return positions
