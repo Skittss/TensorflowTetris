@@ -1,7 +1,24 @@
 from queue import PriorityQueue
+from util import Action
+
+def simulate_DAS(actions, currentCharge):
+    if not actions[Action.Left] and not actions[Action.Right]:
+        currentCharge = 0
+        return currentCharge, True
+
+    if currentCharge > 0 and actions[Action.Left] and not actions[Action.Right]:
+        currentCharge = 0
+        return currentCharge, True
+
+    if currentCharge < 0 and not actions[Action.Left] and actions[Action.Right]:
+        currentCharge = 0
+        return currentCharge, True
+
+    return currentCharge, False
+
 
 def heuristic(goal, node):
-
+    pass
 
 def get_neighbours(tetris_game, node):
 
@@ -10,6 +27,8 @@ def get_neighbours(tetris_game, node):
 
     ARR = tetris_game.ARR
     ARR_tick = tetris_game.ARRframeTick
+
+    das_charge, reset_ARR = simulate_DAS(actions, DAS_charge)
 
 
 def find_path(tetris_game, tetromino, current_pos, current_rotation, goal_pos, goal_rotation):

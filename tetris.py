@@ -24,24 +24,65 @@ from secrets import randbelow
 #           ---Fix top out when piece falls as garbage rises, I think the piece can't push to the garbage?
 #           --- -ve indexing causes by topout. immediately harddrop all pieces to replicate.
 
+class TetrisGameState:
+
+    def __init__(self):
+
+        self.lastDropClass = None
+        self.currentReward = None
+        self.pieceCount = None
+
+        self.score = None
+        self.lost = None
+
+        self.grid = None
+
+        self.tick = None
+        self.frame = None
+        self.lockTick = None
+
+        self.comboCounterState = None
+
+        self.DAScharge = None
+        self.ARRframeTick = None
+
+        self.currentTetrominoState = None
+        self.heldTetrominoState = None
+        self.heldLastPiece = None
+
+        self.bagRandomState = None
+        self.bagState = None
+
+        self.garbageRandomState = None
+        self.garbageState = None
+
 class Tetris:
 
     class Tetromino:
 
-        def __init__(self, matrices, startPos, tag = 0, centreStartPos = True):
+        @classmethod
+        def fromState(cls, state):
+            return cls(None, None, None, state=state)
 
-            self.tag = tag
-            self.matrix = matrices[tag]
+        def __init__(self, matrices, startPos, tag = 0, centreStartPos = True, state=None):
 
-            if centreStartPos:
-                self.startPos = startPos -  np.array([[int(math.floor(self.matrix.shape[1] / 2)), 0]])
-            else :
-                self.startPos = startPos
+            if state:
+                self.loadState(state)
 
-            self.pos = self.startPos
-            self.rotateState = 0
-            self.lastMoveWasRotate = False
-            self.wasKicked1x2 = False
+            else:
+
+                self.tag = tag
+                self.matrix = matrices[tag]
+
+                if centreStartPos:
+                    self.startPos = startPos -  np.array([[int(math.floor(self.matrix.shape[1] / 2)), 0]])
+                else :
+                    self.startPos = startPos
+
+                self.pos = self.startPos
+                self.rotateState = 0
+                self.lastMoveWasRotate = False
+                self.wasKicked1x2 = False
 
         def resetPos(self):
             
@@ -64,6 +105,15 @@ class Tetris:
         def resetMatrix(self, matrices):
             self.matrix = matrices[self.tag]
 
+        def loadState(self, state):
+            self.tag, mat, startPos, pos, self.rotateState, self.lastMoveWasRotate, self.wasKicked1x2 = state
+            self.matrix = mat.copy()
+            self.startPos = startPos.copy()
+            self.pos = pos.copy()
+
+        def saveState(self):
+            return (self.tag, self.matrix.copy(), self.startPos.copy(), self.pos.copy(), self.rotateState, self.lastMoveWasRotate, self.wasKicked1x2)
+
         def __str__(self):
 
             return f"<Tetromino: {self.tag}-piece>"
@@ -71,6 +121,7 @@ class Tetris:
     class GarbageList:
 
         def __init__(self, INITIAL_DELAY, REPEAT_DELAY, MAX_GARBAGE):
+
             self.maxGarbage = MAX_GARBAGE
             self.garbage = []
             self.delay = INITIAL_DELAY
@@ -123,6 +174,12 @@ class Tetris:
             # @Returns number of lines to be sent after countering.
             return max(0, n - len(self.garbage))
 
+        def loadState(self, state):
+            self.garbage = state.copy()
+
+        def saveState(self):
+            return self.garbage.copy()
+
     class Combo:
 
         def __init__(self, TIMER, COMBOFUNC):
@@ -155,6 +212,12 @@ class Tetris:
                 return self.__table(self.getCombo())
                 
             return 0
+
+        def loadState(self, state):
+            self.__comboPieces, self.__tick = state
+        
+        def saveState(self):
+            return (self.__comboPieces, self.__tick)
 
     class DisplayData:
 
@@ -262,6 +325,10 @@ class Tetris:
         self.__wallKickTestsOther = gameConfig.Other_kicks
 
         self.__getNextTetromino()
+
+        test = self.saveState()
+
+        self.loadState(test)
 
         #self.receiveGarbage(20)
 
@@ -982,3 +1049,90 @@ class Tetris:
                     positions.append( (y,x) )
 
         return positions
+
+    def saveState(self):
+        
+        state = TetrisGameState()
+
+        state.lastDropClass = self.__lastDropClass
+        state.currentReward = self.currentReward # Might be irrelevant
+        state.pieceCount = self.pieceCount
+
+        # Pts & Game over
+        state.score = self.score
+        state.lost = self.__lost
+
+        # Grid information 
+        state.grid = self.grid.copy()
+
+        # Framerate related info
+        state.tick = self.__tick
+        state.frame = self.__frame
+        state.lockTick = self.__lockTick
+
+        # Combos
+        state.comboCounterState = self.comboCounter.saveState()
+
+        # DAS, ARR, SDF
+        state.DAScharge = self.DAScharge
+
+        state.ARRframeTick = self.ARRframeTick
+
+        # Hold & Current piece
+        state.currentTetrominoState = self.currentTetromino.saveState()
+        if self.heldTetromino:
+            state.heldTetrominoState = self.heldTetromino.saveState()
+        state.heldLastPiece = self.heldLastPiece
+
+        state.bagRandomState = self.bagRandom.bit_generator.state
+        state.bagState = [t.saveState() for t in self.bag]
+
+        # Garbage
+
+        state.garbageRandomState = self.garbageRandom.bit_generator.state
+        state.garbageState = self.garbage.saveState()
+
+        return state
+
+    def loadState(self, state):
+
+        self.__lastDropClass = state.lastDropClass
+        self.currentReward = state.currentReward
+        self.pieceCount = state.pieceCount
+
+        self.score = state.score
+        self.__lost = state.lost
+
+        # Grid information 
+        self.grid = state.grid.copy()
+
+        # Framerate related info
+        self.__tick = state.tick
+        self.__frame = state.frame
+        self.__lockTick = state.lockTick
+
+        # Combos
+        self.comboCounter.loadState(state.comboCounterState)
+
+        # DAS, ARR, SDF
+        self.DAScharge = state.DAScharge
+
+        self.ARRframeTick = state.ARRframeTick
+
+        # Hold & Current piece
+        self.currentTetromino = self.Tetromino.fromState(state.currentTetrominoState)
+        if state.heldTetrominoState:
+            self.heldTetromino = self.Tetromino.fromState(state.heldTetrominoState)
+        else:
+            self.heldTetromino = None
+        self.heldLastPiece = state.heldLastPiece
+
+        self.bagRandom.bit_generator.state = state.bagRandomState
+        self.bag = deque()
+        for tState in state.bagState:
+            self.bag.append(self.Tetromino.fromState(tState))
+
+        # Garbage
+
+        self.garbageRandom.bit_generator.state = state.garbageRandomState
+        self.garbage.loadState(state.garbageState)
