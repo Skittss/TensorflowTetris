@@ -1050,6 +1050,15 @@ class Tetris:
 
         return positions
 
+    def getNextStateFromState(self, state, actions):
+        # Get next state without traversing to that state
+        currentState = self.saveState()
+        self.loadState(state)
+        self.nextState(actions)
+        nextState = self.saveState()
+        self.loadState(currentState)    # TODO: consider moving this to internal state to avoid reloading state during pathfinding until the very end
+        return nextState
+
     def saveState(self):
         
         state = TetrisGameState()
