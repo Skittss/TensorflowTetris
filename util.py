@@ -21,22 +21,22 @@ def msToFrames(framerate, ms):
 class Action(Enum):
     Left = 0
     Right = 1
-    SoftDrop = 2
-    HardDrop = 3
-    RotateLeft = 4
-    RotateRight = 5
-    Rotate180 = 6
+    RotateLeft = 2
+    RotateRight = 3
+    Rotate180 = 4
+    SoftDrop = 5
+    HardDrop = 6
     Hold = 7
 
 def getEmptyActionObj():
     return {
         Action.Left: False,
         Action.Right: False,
-        Action.SoftDrop: False,
-        Action.HardDrop: False,
         Action.RotateLeft: False,
         Action.RotateRight: False,
         Action.Rotate180: False,
+        Action.SoftDrop: False,
+        Action.HardDrop: False,
         Action.Hold: False
     }
 
