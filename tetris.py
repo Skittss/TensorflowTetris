@@ -55,6 +55,9 @@ class TetrisGameState:
 
         self.garbageRandomState = None
         self.garbageState = None
+    
+    def __str__(self):
+        return f"{self.currentTetrominoState}"
 
 class Tetris:
 
@@ -129,7 +132,7 @@ class Tetris:
 
         def add(self, n):
             for i in range(0, n):
-                if len(self.garbage < self.maxGarbage):
+                if len(self.garbage) < self.maxGarbage:
                     self.garbage.append(self.delay + (i * self.repeatDelay))
 
             self.garbage.sort(reverse=True)
