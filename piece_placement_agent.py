@@ -11,6 +11,8 @@
 import numpy as np
 from agent_config import AgentGameConfig, AgentHandlingConfig
 from tetris import Tetris
+from pathfinder import Pathfinder
+from util import actionObjToStr
 
 class PiecePlacementAgent:
 
@@ -88,7 +90,10 @@ class PiecePlacementAgent:
 
 if __name__ == "__main__":
 
-    matrix = np.array([[0, 1, 0], [1, 1, 0], [0, 1, 0]])
     test = PiecePlacementAgent()
     tetris = Tetris(AgentGameConfig, AgentHandlingConfig)
-    print(test.get_drop_positions(tetris.currentTetromino, tetris))
+    dropPos = list(test.get_drop_positions(tetris.currentTetromino, tetris).keys())[12]
+    print(dropPos)
+    for ac in Pathfinder.get_path(tetris, dropPos):
+        print(actionObjToStr(ac))
+    # print(test.get_drop_positions(tetris.currentTetromino, tetris))
