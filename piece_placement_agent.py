@@ -78,13 +78,13 @@ class PiecePlacementAgent:
 
                     already_added = True
                     try:
-                        drop_positions[(tuplePos, k)]
+                        drop_positions[(tuplePos, -k%4)]
                     except KeyError:
                         already_added = False
 
                     if not already_added:
                         if tetris_game.canPlaceOnGrid(matrix, pos):
-                            drop_positions[(tuplePos, k)] = True
+                            drop_positions[(tuplePos, -k%4)] = True
         
         return drop_positions
 
@@ -92,8 +92,19 @@ if __name__ == "__main__":
 
     test = PiecePlacementAgent()
     tetris = Tetris(AgentGameConfig, AgentHandlingConfig)
-    dropPos = list(test.get_drop_positions(tetris.currentTetromino, tetris).keys())[12]
+    # tetris.grid[35:40, :] = np.array([
+    #     [1,1,0,0,0,0,0,0,0,0],
+    #     [1,0,0,0,0,0,0,0,0,0],
+    #     [1,0,1,1,1,1,1,1,1,1],
+    #     [1,0,0,1,1,1,1,1,1,1],
+    #     [1,0,1,1,1,1,1,1,1,1]
+    # ]) #(0, 37), 1, kicked from (1, 35), 0
+    dropPos = list(test.get_drop_positions(tetris.currentTetromino, tetris).keys())[-1]
     print(dropPos)
-    for ac in Pathfinder.get_path(tetris, dropPos):
-        print(actionObjToStr(ac))
-    # print(test.get_drop_positions(tetris.currentTetromino, tetris))
+    path = Pathfinder.get_path(tetris, dropPos)
+    if path:
+        for ac in path:
+            print(actionObjToStr(ac))
+
+    else:
+        print("No path found.")
