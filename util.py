@@ -40,6 +40,33 @@ def getEmptyActionObj():
         Action.Hold: False
     }
 
+def actionObjToStr(obj):
+    str = "Action: "
+    addStr = ""
+    if obj[Action.Left]:
+        addStr += "L "
+    if obj[Action.Right]:
+        addStr += "R "
+    if obj[Action.RotateLeft]:
+        addStr += "Rot-L "
+    if obj[Action.RotateRight]:
+        addStr += "Rot-R "
+    if obj[Action.Rotate180]:
+        addStr += "Rot-F "
+    if obj[Action.SoftDrop]:
+        addStr += "SoftDrop "
+    if obj[Action.HardDrop]:
+        addStr += "HardDrop "
+    if obj[Action.Hold]:
+        addStr+= "Hold "
+    if len(addStr) == 0:
+        addStr = "None"
+
+    return str + addStr
+
+def numpyCoordToTuple(coord):
+    return (coord[0, 0], coord[0, 1])
+
 class KeyIcons:
 
     entries = {
