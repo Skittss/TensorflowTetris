@@ -23,6 +23,7 @@ from secrets import randbelow
 #           Sometimes kick not working on right wall - fix.
 #           ---Fix top out when piece falls as garbage rises, I think the piece can't push to the garbage?
 #           --- -ve indexing causes by topout. immediately harddrop all pieces to replicate.
+#           --- T-spin triple not detected
 
 class TetrisGameState:
 
@@ -51,6 +52,7 @@ class TetrisGameState:
         self.currentHardDropPosition = None
         self.deltaRotation = None
         self.deltaPos = None
+        self.currentKickTranslations = None
         self.heldTetrominoState = None
         self.heldLastPiece = None
 
@@ -61,7 +63,12 @@ class TetrisGameState:
         self.garbageState = None
 
     def reducedTuple(self):
-        return self.justDroppedTo if self.justDroppedTo else (numpyCoordToTuple(self.currentTetrominoState[3]), self.currentTetrominoState[4])
+
+        piece_state = self.justDroppedTo if self.justDroppedTo else (numpyCoordToTuple(self.currentTetrominoState[3]), self.currentTetrominoState[4])
+        # min_frames_away_from_move = min(2)
+        # move_direction = #0 = left, 1 = right, 2
+
+        return (*piece_state, self.DAScharge, self.ARRframeTick, self.justDroppedTo is None)
     
     def __str__(self):
         return f"{self.frame}"
@@ -285,6 +292,14 @@ class Tetris:
         self.rows = rows * 2
         self.hiddenRows = rows
         self.grid = np.zeros([self.rows, self.cols])
+        self.grid[34:40, :] = np.array([
+            [0,0,0,1,1,0,0,0,0,0],
+            [0,0,0,0,1,1,1,1,1,1],
+            [1,1,1,0,1,1,1,1,1,1],
+            [1,1,0,0,1,1,1,1,1,1],
+            [1,1,0,0,1,1,1,1,1,1],
+            [1,0,0,0,1,1,1,1,1,1]
+        ])
 
         # Framerate related info
         self.__tick = 0
@@ -310,6 +325,7 @@ class Tetris:
         self.currentTetromino = None
         self.deltaRotation = 0
         self.deltaHorizontalPos = 0
+        self.currentKickTranslations = (None, None, None)
         self.heldTetromino = None
         self.heldLastPiece = False
 
@@ -420,6 +436,8 @@ class Tetris:
 
             self.currentReward = 0
             self.justDroppedTo = None
+            # TODO: Could update these to tuples to be safe but kick tables are persistent. Also could memo these to avoid re-calculating for rotations in __doActions.
+            self.currentKickTranslations = (self.__canRotate(1), self.__canRotate(2), self.__canRotate(3))
             self.deltaRotation = self.deltaHorizontalPos = 0
 
             self.__doDASandARRreset(actions)
@@ -887,7 +905,8 @@ class Tetris:
         return not canMoveDown
 
     def __getNextTetromino(self):
-        self.currentTetromino = self.__rotateBag()
+        # self.currentTetromino = self.__rotateBag()
+        self.currentTetromino = self.Tetromino(self.tetrominoMatrices, self.tetrominoStartPos, 5)
         return self.__pushCurrentTetrominoToGrid()
         
     def __popCurrentTetrominoFromGrid(self):
@@ -1124,6 +1143,7 @@ class Tetris:
         state.currentHardDropPosition = self.currentHardDropPosition
         state.deltaRotation = self.deltaRotation
         state.deltaPos = self.deltaHorizontalPos
+        state.currentKickTranslations = self.currentKickTranslations
         if self.heldTetromino:
             state.heldTetrominoState = self.heldTetromino.saveState()
         state.heldLastPiece = self.heldLastPiece
@@ -1169,6 +1189,7 @@ class Tetris:
         self.currentHardDropPosition = state.currentHardDropPosition
         self.deltaRotation = state.deltaRotation
         self.deltaHorizontalPos = state.deltaPos
+        self.currentKickTranslations = state.currentKickTranslations
         if state.heldTetrominoState:
             self.heldTetromino = self.Tetromino.fromState(state.heldTetrominoState)
         else:
