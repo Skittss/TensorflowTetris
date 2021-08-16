@@ -1,6 +1,6 @@
 import numpy as np
 import math
-from util import Action, ScoreTypes, Tetrominos
+from util import Action, ScoreTypes, Tetrominos, numpyCoordToTuple
 from collections import deque
 from secrets import randbelow
 
@@ -29,6 +29,7 @@ class TetrisGameState:
     def __init__(self):
 
         self.lastDropClass = None
+        self.justDroppedTo = None
         self.currentReward = None
         self.pieceCount = None
 
@@ -47,6 +48,9 @@ class TetrisGameState:
         self.ARRframeTick = None
 
         self.currentTetrominoState = None
+        self.currentHardDropPosition = None
+        self.deltaRotation = None
+        self.deltaPos = None
         self.heldTetrominoState = None
         self.heldLastPiece = None
 
@@ -55,9 +59,16 @@ class TetrisGameState:
 
         self.garbageRandomState = None
         self.garbageState = None
+
+    def reducedTuple(self):
+        return self.justDroppedTo if self.justDroppedTo else (numpyCoordToTuple(self.currentTetrominoState[3]), self.currentTetrominoState[4])
     
     def __str__(self):
-        return f"{self.currentTetrominoState}"
+        return f"{self.frame}"
+
+    # For use in priority queue
+    def __lt__(self, other):
+        return False
 
 class Tetris:
 
@@ -297,8 +308,13 @@ class Tetris:
 
         # Hold & Current piece
         self.currentTetromino = None
+        self.deltaRotation = 0
+        self.deltaHorizontalPos = 0
         self.heldTetromino = None
         self.heldLastPiece = False
+
+        # Indication for last drop upon new gamestate
+        self.justDroppedTo = None
 
         # Tetromino mapping to matrices
         self.tetrominoMatrices = self.__getTetrominoMatrices()
@@ -328,6 +344,8 @@ class Tetris:
         self.__wallKickTestsOther = gameConfig.Other_kicks
 
         self.__getNextTetromino()
+
+        self.currentHardDropPosition = numpyCoordToTuple(self.__findCurrentHarddropPosition())
 
         test = self.saveState()
 
@@ -401,10 +419,15 @@ class Tetris:
         if not self.__lost:
 
             self.currentReward = 0
+            self.justDroppedTo = None
+            self.deltaRotation = self.deltaHorizontalPos = 0
 
             self.__doDASandARRreset(actions)
 
-            self.__popCurrentTetrominoFromGrid()
+            harddropPos = self.__findCurrentHarddropPosition(repush=False)
+            self.currentHardDropPosition = (harddropPos[0, 0], harddropPos[0, 1])
+
+            # self.__popCurrentTetrominoFromGrid()
 
             # Perhaps needs to be moved to after action is done.
             linesToAdd = self.garbage.tick()
@@ -432,6 +455,8 @@ class Tetris:
                     self.__lockTick = 0
 
                     self.heldLastPiece = False
+                    # Consider moving pos to tuple into class function
+                    self.justDroppedTo = ((self.currentTetromino.pos[0,0], self.currentTetromino.pos[0, 1]), self.currentTetromino.rotateState)
 
                     # Don't actually clear lines the first time around else it messes up the classification
                     linesCleared = self.__clearLines(clear = False)
@@ -684,6 +709,7 @@ class Tetris:
         canMove = self.canPlaceOnGrid(self.currentTetromino.matrix, self.currentTetromino.pos + np.array([translation]))
 
         if canMove:
+            self.deltaHorizontalPos = 1
             self.currentTetromino.translate(np.array([translation]))
 
         return canMove
@@ -731,6 +757,7 @@ class Tetris:
         translation = self.__canRotate(k)
 
         if not type(translation) == type(None):
+            self.deltaRotation = 1
             self.currentTetromino.lastMoveWasRotate = True
             self.currentTetromino.rotate(k)
             self.currentTetromino.translate(translation)
@@ -816,7 +843,7 @@ class Tetris:
 
             self.heldLastPiece = True
 
-    def __findCurrentHarddropPosition(self):
+    def __findCurrentHarddropPosition(self, repush=True):
 
         self.__popCurrentTetrominoFromGrid()
 
@@ -829,7 +856,8 @@ class Tetris:
             if canMoveDown:
                 downMoves += 1
 
-        self.__pushCurrentTetrominoToGrid()
+        if repush:
+            self.__pushCurrentTetrominoToGrid()
 
         return self.currentTetromino.pos + np.array([[0, downMoves - 1]])
 
@@ -1067,6 +1095,7 @@ class Tetris:
         state = TetrisGameState()
 
         state.lastDropClass = self.__lastDropClass
+        state.justDroppedTo = self.justDroppedTo
         state.currentReward = self.currentReward # Might be irrelevant
         state.pieceCount = self.pieceCount
 
@@ -1092,6 +1121,9 @@ class Tetris:
 
         # Hold & Current piece
         state.currentTetrominoState = self.currentTetromino.saveState()
+        state.currentHardDropPosition = self.currentHardDropPosition
+        state.deltaRotation = self.deltaRotation
+        state.deltaPos = self.deltaHorizontalPos
         if self.heldTetromino:
             state.heldTetrominoState = self.heldTetromino.saveState()
         state.heldLastPiece = self.heldLastPiece
@@ -1109,6 +1141,7 @@ class Tetris:
     def loadState(self, state):
 
         self.__lastDropClass = state.lastDropClass
+        self.justDroppedTo = state.justDroppedTo
         self.currentReward = state.currentReward
         self.pieceCount = state.pieceCount
 
@@ -1133,6 +1166,9 @@ class Tetris:
 
         # Hold & Current piece
         self.currentTetromino = self.Tetromino.fromState(state.currentTetrominoState)
+        self.currentHardDropPosition = state.currentHardDropPosition
+        self.deltaRotation = state.deltaRotation
+        self.deltaHorizontalPos = state.deltaPos
         if state.heldTetrominoState:
             self.heldTetromino = self.Tetromino.fromState(state.heldTetrominoState)
         else:
