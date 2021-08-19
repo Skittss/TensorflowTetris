@@ -12,9 +12,43 @@ import numpy as np
 from agent_config import AgentGameConfig, AgentHandlingConfig
 from tetris import Tetris
 from pathfinder import Pathfinder
-from util import actionObjToStr
+from util import actionObjToStr, getEmptyActionObj
+import random
 
 class PiecePlacementAgent:
+
+    def __init__(self):
+        self.path = None
+        self.path_idx = 0
+
+    def assign_hook_funcs(self, tetris_game: Tetris):
+        tetris_game.nextTetrominoHook = self.get_random_path
+
+    def get_random_path(self, tetris_game: Tetris):
+        drop_positions = list(self.get_drop_positions(tetris_game.currentTetromino, tetris_game).keys())
+        self.path = None
+        if len(drop_positions) > 0:
+            while self.path is None:
+                idx = random.randint(0, len(drop_positions) - 1)
+                pos = drop_positions[idx]
+                print(pos)
+                self.path = Pathfinder.get_path(tetris_game, pos)
+                self.path_idx = 0
+                print(f"Path found: {[actionObjToStr(a) for a in self.path] if self.path else None}")
+                # if path:
+                #     for ac in path:
+                #         print(actionObjToStr(ac))
+
+                # else:
+                #     print("No path found.")
+
+    def get_action(self):
+        if self.path and len(self.path) > self.path_idx:
+            ac = self.path[self.path_idx]
+            self.path_idx += 1
+            return ac
+
+        return getEmptyActionObj()
 
     def get_bottom_piece_index_in_column(self, matrix, col):
         
@@ -99,12 +133,14 @@ if __name__ == "__main__":
     #     [1,0,0,1,1,1,1,1,1,1],
     #     [1,0,1,1,1,1,1,1,1,1]
     # ]) #(0, 37), 1, kicked from (1, 35), 0
-    dropPos = list(test.get_drop_positions(tetris.currentTetromino, tetris).keys())[-1]
+    dropPos = list(test.get_drop_positions(tetris.currentTetromino, tetris).keys())
     print(dropPos)
-    path = Pathfinder.get_path(tetris, dropPos)
-    if path:
-        for ac in path:
-            print(actionObjToStr(ac))
 
-    else:
-        print("No path found.")
+    for pos in dropPos:
+        path = Pathfinder.get_path(tetris, pos)
+        if path:
+            for ac in path:
+                print(actionObjToStr(ac))
+
+        else:
+            print("No path found.")
