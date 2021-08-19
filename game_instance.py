@@ -4,12 +4,12 @@ from time import time
 
 class GameInstance:
 
-    def __init__(self, gameConfig, handlingConfig):
+    def __init__(self, gameConfig, handlingConfig, nextTetrominoHook=None):
 
         self.gameConfig = gameConfig
         self.handlingConfig = handlingConfig
 
-        self.tet= Tetris(self.gameConfig, handlingConfig, seed=gameConfig.seed, garbageSeed=gameConfig.garbageSeed)
+        self.tet= Tetris(self.gameConfig, handlingConfig, seed=gameConfig.seed, garbageSeed=gameConfig.garbageSeed, nextTetrominoHook=nextTetrominoHook)
         self.garbageFunc = self.tet.receiveGarbage
 
         self.ac = getEmptyActionObj()
