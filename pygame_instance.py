@@ -1,4 +1,5 @@
 from os import environ, path
+from piece_placement_agent import PiecePlacementAgent
 environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 
 import pygame
@@ -16,9 +17,19 @@ from util import Action, lerpBlendRGBA, hexstrToRGB
 
 class PygameInstance(GameInstance):
 
-    def __init__(self, gameConfig=PygameGameConfig, interactiveConfig=PygameInteractiveConfig, handlingConfig=PygameHandlingConfig):
+    def __init__(self, gameConfig=PygameGameConfig, interactiveConfig=PygameInteractiveConfig, handlingConfig=PygameHandlingConfig, agent=None):
 
-        super().__init__(gameConfig=gameConfig, handlingConfig=handlingConfig)
+        self.__agent = agent
+        hook = None
+        if self.__agent:
+            hook = self.__agent.get_random_path
+
+        super().__init__(gameConfig=gameConfig, handlingConfig=handlingConfig, nextTetrominoHook=hook)
+
+        if self.__agent:
+            self.tet.popCurrentTetrominoFromGrid()
+            self.__agent.get_random_path(self.tet)
+            self.tet.pushCurrentTetrominoToGrid()
 
         self.interactiveConfig = interactiveConfig
 
@@ -35,6 +46,7 @@ class PygameInstance(GameInstance):
             self.keybindings[Action.Hold]:          {"prev": False, "cur": False}
 
         }
+
 
         self.clock = None
         self.updateInterval = 1/gameConfig.frameRate
@@ -372,7 +384,11 @@ class PygameInstance(GameInstance):
         self.font = pygame.font.Font(path.join(*self.interactiveConfig.relativeFontPath), 36)
 
     def beforeLoopHook(self):
-        self.__getActionFromInputs()
+
+        if self.__agent:
+            self.ac = self.__agent.get_action()
+        else:
+            self.__getActionFromInputs()
         self.__forwardAllKeyStates()
 
     def run(self):
@@ -487,5 +503,5 @@ class PygameInstance(GameInstance):
 
 
 if __name__ == "__main__":
-    game = PygameInstance()
+    game = PygameInstance(agent=PiecePlacementAgent())
     game.run()
