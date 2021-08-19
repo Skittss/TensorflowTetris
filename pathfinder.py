@@ -1,6 +1,6 @@
 from queue import PriorityQueue
 from util import Action, getEmptyActionObj, actionObjToStr
-from tetris import Tetris
+from tetris import Tetris, TetrisGameState
 from agent_config import AgentGameConfig, AgentHandlingConfig
 
 # TODO Compensate for garbage.
@@ -16,7 +16,7 @@ def init_action_permutations(cls):
 class Pathfinder:
 
     action_permutations = None
-    MAX_DEVIATION = 20
+    MAX_DEVIATION = 9
 
     @classmethod
     def set_action_permutations(cls):
@@ -58,7 +58,7 @@ class Pathfinder:
         return permutations + [cls.__action_from_binary([int(v) for v in '{0:07b}'.format(1)])]
 
     @classmethod
-    def __get_action_cost(cls, neighbour, ac):
+    def __get_action_cost(cls, neighbour: TetrisGameState, ac):
         
         c = 0
         c += neighbour.deltaRotation
@@ -69,11 +69,14 @@ class Pathfinder:
         return c
 
     @classmethod
-    def __get_neighbours(cls, tetris_game, node, deviation):
+    def __get_neighbours(cls, tetris_game: Tetris, node: TetrisGameState, is_start_state, deviation):
 
         # TODO cull states where piece is below pos and cannot be kicked to make the difference up (by > 2 tiles?)
 
-        if node.justDroppedTo or deviation > cls.MAX_DEVIATION:
+        if not is_start_state and node.justDroppedTo:
+            return []
+
+        if deviation > cls.MAX_DEVIATION:
             return []
 
         n = []
@@ -89,7 +92,7 @@ class Pathfinder:
         return abs(ax - bx) + abs(ay - by)
 
     @classmethod
-    def __heuristic(cls, goal, node):
+    def __heuristic(cls, goal, node: TetrisGameState):
 
         (goal_pos_x, goal_pos_y), goal_rotate_state = goal
 
@@ -116,10 +119,10 @@ class Pathfinder:
         return 2* manhattan_distance + rotation_difference
 
     @classmethod
-    def __state_hit_goal_state(cls, goal, node):
+    def __state_hit_goal_state(cls, goal, node: TetrisGameState, is_first_state):
 
         # Check if the piece was dropped into the goal position
-        if node.justDroppedTo:
+        if not is_first_state and node.justDroppedTo:
             # TODO: Ensure piecewise comparison is correct here.
             return goal == node.justDroppedTo
 
@@ -138,7 +141,7 @@ class Pathfinder:
         path = []
         current_node = final_state
         while not dict[current_node] is None:
-            print(current_node)
+            # print(current_node)
             next_node, ac = dict[current_node]
             path.append(ac)
             current_node = next_node
@@ -146,7 +149,7 @@ class Pathfinder:
         return path[::-1]
 
     @classmethod
-    def __find_path(cls, tetris_game, goal_piece_state):
+    def __find_path(cls, tetris_game: Tetris, goal_piece_state):
 
         # TODO: consider garbage offset. I.e. goal does not change but position updates as garbage enters
         
@@ -163,14 +166,15 @@ class Pathfinder:
 
         while not frontier.empty():
             took_p, (current_state, deviation) = frontier.get()
+            is_start_state = current_state == start_state
 
-            if cls.__state_hit_goal_state(goal_piece_state, current_state):
+            if cls.__state_hit_goal_state(goal_piece_state, current_state, is_start_state):
 
                 final_state = current_state.reducedTuple()
                 break
 
             # print(f"\nTook state{current_state.reducedTuple()} with priority '{took_p}'\n")
-            for (neighbour, ac) in cls.__get_neighbours(tetris_game, current_state, deviation + 1):
+            for (neighbour, ac) in cls.__get_neighbours(tetris_game, current_state, is_start_state, deviation + 1):
 
                 neighbour_dict_key = neighbour.reducedTuple()
 
@@ -187,7 +191,7 @@ class Pathfinder:
         return path, final_state
 
     @classmethod
-    def get_path(cls, game, goal):
+    def get_path(cls, game: Tetris, goal):
 
         return cls.__construct_path_from_dict(*cls.__find_path(game, goal))
 
