@@ -126,7 +126,7 @@ class Tetris:
         def resetMatrix(self, matrices):
             self.matrix = matrices[self.tag]
 
-        def loadState(self, state):
+        def loadState(self, state: TetrisGameState):
             self.tag, mat, startPos, pos, self.rotateState, self.lastMoveWasRotate, self.wasKicked1x2 = state
             self.matrix = mat.copy()
             self.startPos = startPos.copy()
@@ -276,7 +276,9 @@ class Tetris:
             self.combo = combo
             self.lastDropType = lastDropType
             
-    def __init__(self, gameConfig, handlingConfig, cols = 10, rows = 20, bagSize = 2, seed = None, garbageSeed = None):
+    def __init__(self, gameConfig, handlingConfig, cols = 10, rows = 20, bagSize = 2, seed = None, garbageSeed = None, nextTetrominoHook = None):
+
+        self.nextTetrominoHook = nextTetrominoHook
 
         self.__lastDropClass = None
         self.currentReward = 0
@@ -292,14 +294,6 @@ class Tetris:
         self.rows = rows * 2
         self.hiddenRows = rows
         self.grid = np.zeros([self.rows, self.cols])
-        self.grid[34:40, :] = np.array([
-            [0,0,0,1,1,0,0,0,0,0],
-            [0,0,0,0,1,1,1,1,1,1],
-            [1,1,1,0,1,1,1,1,1,1],
-            [1,1,0,0,1,1,1,1,1,1],
-            [1,1,0,0,1,1,1,1,1,1],
-            [1,0,0,0,1,1,1,1,1,1]
-        ])
 
         # Framerate related info
         self.__tick = 0
@@ -359,13 +353,13 @@ class Tetris:
 
         self.__wallKickTestsOther = gameConfig.Other_kicks
 
-        self.__getNextTetromino()
+        self.__getNextTetromino(doHook=False)
 
         self.currentHardDropPosition = numpyCoordToTuple(self.__findCurrentHarddropPosition())
 
-        test = self.saveState()
+        # test = self.saveState()
 
-        self.loadState(test)
+        # self.loadState(test)
 
         #self.receiveGarbage(20)
 
@@ -430,7 +424,7 @@ class Tetris:
             lastDropType = self.__lastDropClass
         )
 
-    def nextState(self, actions, garbageTarget=None):
+    def nextState(self, actions: Action, garbageTarget=None, doHooks=True):
 
         if not self.__lost:
 
@@ -464,7 +458,7 @@ class Tetris:
 
                 pieceDropped = self.__attemptDownwardMoves(downwardMoveCount)
 
-                self.__pushCurrentTetrominoToGrid()
+                self.pushCurrentTetrominoToGrid()
 
                 if pieceDropped:
 
@@ -495,14 +489,14 @@ class Tetris:
                         toSend = self.__getBaseLinesToSend(self.__lastDropClass) + comboLines
                         self.sendGarbage(toSend, garbageTarget)
 
-                    self.__lost = not self.__getNextTetromino()
+                    self.__lost = not self.__getNextTetromino(doHook=doHooks)
 
                 self.__frame = (self.__frame + 1) % self.__frameRate
 
                 return True, (self.currentReward, self.pieceCount)
 
             else:
-                self.__pushCurrentTetrominoToGrid()
+                self.pushCurrentTetrominoToGrid()
 
                 self.__frame = (self.__frame + 1) % self.__frameRate
 
@@ -831,7 +825,7 @@ class Tetris:
                         return False
 
                     checkTileAgainst = self.grid[checkPos[0, 1], checkPos[0, 0]]
-                    if not checkTileAgainst == 0:
+                    if not checkTileAgainst <= 0:
                         return False
 
         return True
@@ -863,7 +857,7 @@ class Tetris:
 
     def __findCurrentHarddropPosition(self, repush=True):
 
-        self.__popCurrentTetrominoFromGrid()
+        self.popCurrentTetrominoFromGrid()
 
         downMoves = 0
         canMoveDown = True
@@ -875,7 +869,7 @@ class Tetris:
                 downMoves += 1
 
         if repush:
-            self.__pushCurrentTetrominoToGrid()
+            self.pushCurrentTetrominoToGrid()
 
         return self.currentTetromino.pos + np.array([[0, downMoves - 1]])
 
@@ -904,18 +898,23 @@ class Tetris:
         
         return not canMoveDown
 
-    def __getNextTetromino(self):
+    def __getNextTetromino(self, doHook=True):
         # self.currentTetromino = self.__rotateBag()
-        self.currentTetromino = self.Tetromino(self.tetrominoMatrices, self.tetrominoStartPos, 5)
-        return self.__pushCurrentTetrominoToGrid()
+        self.currentTetromino = self.Tetromino(self.tetrominoMatrices, self.tetrominoStartPos, 3)
+        if doHook:
+            x = self.nextTetrominoHook
+            if not self.nextTetrominoHook is None:
+                self.nextTetrominoHook(self)
+
+        return self.pushCurrentTetrominoToGrid()
         
-    def __popCurrentTetrominoFromGrid(self):
+    def popCurrentTetrominoFromGrid(self):
         
         gsv, gsh, tsv, tsh = self.__getSlicesFromGridOverlap()
 
         self.grid[gsv, gsh] -= self.currentTetromino.matrix[tsv, tsh]
 
-    def __pushCurrentTetrominoToGrid(self, doPush=True):
+    def pushCurrentTetrominoToGrid(self, doPush=True):
 
         gsv, gsh, tsv, tsh = self.__getSlicesFromGridOverlap()
 
@@ -1093,18 +1092,18 @@ class Tetris:
         for (y,x), v in np.ndenumerate(self.grid):
             if v == 0:
                 if y + 1 < self.rows:
-                    if self.grid[y + 1, x] == 1:
+                    if self.grid[y + 1, x] > 0:
                         positions.append( (y,x) )
                 else: 
                     positions.append( (y,x) )
 
         return positions
 
-    def getNextStateFromState(self, state, actions):
+    def getNextStateFromState(self, state: TetrisGameState, actions: Action):
         # Get next state without traversing to that state
         currentState = self.saveState()
         self.loadState(state)
-        self.nextState(actions)
+        self.nextState(actions, doHooks=False)
         nextState = self.saveState()
         self.loadState(currentState)    # TODO: consider moving this to internal state to avoid reloading state during pathfinding until the very end
         return nextState
@@ -1158,7 +1157,7 @@ class Tetris:
 
         return state
 
-    def loadState(self, state):
+    def loadState(self, state: TetrisGameState):
 
         self.__lastDropClass = state.lastDropClass
         self.justDroppedTo = state.justDroppedTo
